@@ -1,0 +1,37 @@
+name: Package inspection
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/package-inspection.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Inspect pinned documentation dependencies
+        working-directory: apps/docs
+        run: |
+          npm ci --ignore-scripts
+          npm audit --json > audit.json || true
+          node --input-type=module -e 'import fs from "node:fs"; const a=JSON.parse(fs.readFileSync("audit.json","utf8")); console.log(JSON.stringify({metadata:a.metadata,vulnerabilities:a.vulnerabilities,error:a.error},null,2));'
+      - name: Inspect package name without authenticating
+        run: npm view tessembly name version repository --json || true
+      - name: Check initial publishing credential availability
+        env:
+          INITIAL_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$INITIAL_NPM_TOKEN" ]; then echo 'NPM_TOKEN is configured (value not disclosed).'; else echo 'NPM_TOKEN is not configured; first publish needs npm authentication.'; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: documentation-audit
+          path: apps/docs/audit.json
+          retention-days: 7
