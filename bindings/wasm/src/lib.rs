@@ -20,7 +20,9 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
             }
             Ok(tessembly_text::format(&doc.root)?.into_bytes())
         } else {
-            Ok(tessembly_document::wire::decode(input)?.to_text()?.into_bytes())
+            Ok(tessembly_document::wire::decode(input)?
+                .to_text()?
+                .into_bytes())
         };
     }
     let text = std::str::from_utf8(input).map_err(|_| Error::new("INVALID_UTF8"))?;
@@ -34,7 +36,10 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
                 out.extend_from_slice(tessembly_text::format(&root)?.as_bytes());
                 Ok(out)
             }
-            3 => tessembly_codec::encode(&tessembly_codec::Document { root, optional_extensions: vec![] }),
+            3 => tessembly_codec::encode(&tessembly_codec::Document {
+                root,
+                optional_extensions: vec![],
+            }),
             _ => unreachable!(),
         };
     }
@@ -62,7 +67,9 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
 // no_mangle fixes the ABI names. These exports use integer offsets, not unsafe
 // Rust pointer dereferences. The library has no unsafe blocks.
 #[no_mangle]
-pub extern "C" fn ts_abi_version() -> u32 { 1 }
+pub extern "C" fn ts_abi_version() -> u32 {
+    1
+}
 #[no_mangle]
 pub extern "C" fn ts_reserve_input(len: u32) -> u32 {
     BUFFERS.with(|cell| {
@@ -86,8 +93,15 @@ pub extern "C" fn ts_run(op: u32) -> u32 {
         let mut b = cell.borrow_mut();
         b.error = None;
         match dispatch(op, &b.input) {
-            Ok(out) => { b.output = out; 0 }
-            Err(e) => { b.output = e.code.as_bytes().to_vec(); b.error = Some(e); 1 }
+            Ok(out) => {
+                b.output = out;
+                0
+            }
+            Err(e) => {
+                b.output = e.code.as_bytes().to_vec();
+                b.error = Some(e);
+                1
+            }
         }
     })
 }
@@ -96,11 +110,17 @@ pub extern "C" fn ts_output_ptr() -> u32 {
     BUFFERS.with(|b| b.borrow().output.as_ptr() as usize as u32)
 }
 #[no_mangle]
-pub extern "C" fn ts_output_len() -> u32 { BUFFERS.with(|b| b.borrow().output.len() as u32) }
+pub extern "C" fn ts_output_len() -> u32 {
+    BUFFERS.with(|b| b.borrow().output.len() as u32)
+}
 #[no_mangle]
-pub extern "C" fn ts_error_start() -> u32 { BUFFERS.with(|b| b.borrow().error.as_ref().map_or(0, |e| e.span.start as u32)) }
+pub extern "C" fn ts_error_start() -> u32 {
+    BUFFERS.with(|b| b.borrow().error.as_ref().map_or(0, |e| e.span.start as u32))
+}
 #[no_mangle]
-pub extern "C" fn ts_error_end() -> u32 { BUFFERS.with(|b| b.borrow().error.as_ref().map_or(0, |e| e.span.end as u32)) }
+pub extern "C" fn ts_error_end() -> u32 {
+    BUFFERS.with(|b| b.borrow().error.as_ref().map_or(0, |e| e.span.end as u32))
+}
 #[no_mangle]
 pub extern "C" fn ts_reset() {
     BUFFERS.with(|b| *b.borrow_mut() = Buffers::default());
