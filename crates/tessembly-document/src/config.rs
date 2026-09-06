@@ -24,6 +24,22 @@ fn token_check(v: &Value, registry: &BTreeSet<String>) -> Result<()> {
     if !registry.contains(c.args[0].text()?) { return Err(Error::new("UNREGISTERED_PIECE")); }
     c.named.get("origin").ok_or_else(|| Error::new("ORIGIN_REQUIRED"))?.number()?; Ok(())
 }
+fn observation(c: &Call) -> Result<()> {
+    match c.name.as_str() {
+        "all" => { c.arity(0)?; c.keys(&[])?; }
+        "view" => {
+            c.arity(0)?; c.keys(&["active","next","hold","memory","reveal","bag"])?;
+            for key in ["active","hold"] { if let Some(v) = c.named.get(key) { v.boolean()?; } }
+            if let Some(v) = c.named.get("next") { if v.number()? > MAX_DRAWS as u64 { return Err(Error::new("VIEW_LIMIT")); } }
+            if let Some(v) = c.named.get("memory") { enum_value(v,&["history","current"])?; }
+            if let Some(v) = c.named.get("reveal") { enum_value(v,&["supply","lock","host"])?; }
+            if let Some(v) = c.named.get("bag") { enum_value(v,&["known","hidden"])?; }
+        }
+        "external" => external(c)?,
+        _ => return Err(Error::new("UNSUPPORTED_OBSERVATION_DECLARATION")),
+    }
+    Ok(())
+}
 pub(crate) fn validate(config: &BTreeMap<String,Value>, registry: &BTreeSet<String>) -> Result<()> {
     for (key, v) in config {
         match key.as_str() {
@@ -56,22 +72,7 @@ pub(crate) fn validate(config: &BTreeMap<String,Value>, registry: &BTreeSet<Stri
                     _ => return Err(Error::new("UNSUPPORTED_START_DECLARATION")),
                 }
             }
-            "see" => {
-                let c = v.call()?;
-                match c.name.as_str() {
-                    "all" => { c.arity(0)?; c.keys(&[])?; }
-                    "view" => {
-                        c.arity(0)?; c.keys(&["active","next","hold","memory","reveal","bag"])?;
-                        for key in ["active","hold"] { if let Some(v) = c.named.get(key) { v.boolean()?; } }
-                        if let Some(v) = c.named.get("next") { if v.number()? > MAX_DRAWS as u64 { return Err(Error::new("VIEW_LIMIT")); } }
-                        if let Some(v) = c.named.get("memory") { enum_value(v,&["history","current"])?; }
-                        if let Some(v) = c.named.get("reveal") { enum_value(v,&["supply","lock","host"])?; }
-                        if let Some(v) = c.named.get("bag") { enum_value(v,&["known","hidden"])?; }
-                    }
-                    "external" => external(c)?,
-                    _ => return Err(Error::new("UNSUPPORTED_OBSERVATION_DECLARATION")),
-                }
-            }
+            "see" => observation(v.call()?)?,
             "hold" => {
                 let c = v.call()?;
                 match c.name.as_str() {
@@ -122,7 +123,7 @@ pub struct View {
 }
 /// None means see-inf. Defaults belong to document schema v1, not to an external see-7 alias.
 pub fn view(v: &Value) -> Result<Option<View>> {
-    let c = v.call()?;
+    let c = v.call()?; observation(c)?;
     if c.name == "all" { return Ok(None); }
     if c.name != "view" { return Err(Error::new("UNSUPPORTED_OBSERVATION_PROFILE")); }
     let boolean = |key, default| c.named.get(key).map(Value::boolean).transpose().map(|v|v.unwrap_or(default));
