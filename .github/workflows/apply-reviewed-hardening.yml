@@ -1,0 +1,59 @@
+name: Apply and verify reviewed Rust hardening
+on:
+  push:
+    branches: [main]
+    paths: ['.github/migrations/rust-security-*.patch', '.github/workflows/apply-reviewed-hardening.yml']
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-rust-migration
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: true
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with: { node-version: '24', package-manager-cache: false }
+      - name: Verify exact reviewed migration and apply only Rust paths
+        run: |
+          test "$(git rev-parse HEAD^)" = 7a9ce511dc432429be64a483d3ec229c31298867
+          cat .github/migrations/rust-security-{1,2,3}.patch > /tmp/rust-security.patch
+          echo '1f6ed66c309b84c5241b53ee73c48fef31976459264e241a7c7a04cfaaba672a  /tmp/rust-security.patch' | sha256sum --check
+          git apply --check /tmp/rust-security.patch
+          git apply --index /tmp/rust-security.patch
+          git diff --cached --name-only | while IFS= read -r path; do
+            case "$path" in crates/tessembly-*/src/*.rs|crates/tessembly-*/tests/*.rs|bindings/wasm/build.rs) ;; *) echo "Unexpected path: $path"; exit 1;; esac
+          done
+      - name: Format and test before committing source changes
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
+          cargo +1.85.0 fmt --all
+          cargo +1.85.0 fmt --manifest-path bindings/wasm/Cargo.toml
+          cargo +1.85.0 test --locked --workspace --all-targets
+          cargo +1.85.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.85.0 build --locked --offline --manifest-path bindings/wasm/Cargo.toml --target wasm32-unknown-unknown --release
+      - name: Commit tested Rust files without rewriting history
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'crates/**/*.rs' 'bindings/wasm/build.rs'
+          git commit -m 'fix(security): enforce aggregate model budgets, bounded developer I/O and Wasm memory'
+          git push origin HEAD:main
+          mkdir migration-evidence
+          git archive --format=tar.gz --output=migration-evidence/source.tar.gz HEAD
+          git rev-parse HEAD > migration-evidence/source-commit.txt
+          cp bindings/wasm/target/wasm32-unknown-unknown/release/tessembly_wasm.wasm migration-evidence/
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: tested-rust-hardening
+          path: migration-evidence/
+          retention-days: 7
+          if-no-files-found: error
