@@ -24,6 +24,11 @@ const messages = {
   WASM_LOAD_FAILED: ['Could not load the bundled WebAssembly module.', '포함된 WebAssembly 모듈을 불러올 수 없습니다.'],
   WASM_ABI_MISMATCH: ['The WebAssembly ABI does not match this package.', 'WebAssembly ABI가 패키지와 일치하지 않습니다.'],
   WASM_TRAP: ['WebAssembly processing stopped; no complete result is available.', 'WebAssembly 처리가 중단되어 완전한 결과가 없습니다.'],
+  WASM_INSTANCE_FAILED: ['This instance stopped after a trap; create a new instance.', '트랩 이후 중단된 인스턴스입니다. 새 인스턴스를 만드세요.'],
+  WASM_SIZE_LIMIT: ['The Wasm asset exceeds the supported limit.', 'Wasm 자산이 크기 한도를 초과했습니다.'],
+  SHARED_INPUT_UNSUPPORTED: ['Copy shared input into a private buffer first.', '공유 입력을 먼저 독립 버퍼로 복사하세요.'],
+  REGULAR_FILE_REQUIRED: ['Input must be a regular file.', '입력은 일반 파일이어야 합니다.'],
+  EEXIST: ['Output already exists; choose a new path.', '출력 파일이 이미 존재합니다. 새 경로를 지정하세요.'],
   DISPOSED: ['This Tessembly instance has been disposed.', '종료된 테섬블리 인스턴스입니다.']
 };
 export function errorMessage(code, language = 'en') {

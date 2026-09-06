@@ -11,8 +11,9 @@ for(const hook of ['preinstall','install','postinstall','prepare']) assert.ok(!p
 const bytes=readFileSync(new URL('../tessembly.wasm',import.meta.url));
 assert.ok(bytes.length < 2_000_000,'unexpected Wasm size growth');
 assert.deepEqual(WebAssembly.Module.imports(new WebAssembly.Module(bytes)),[]);
-const npm=process.platform==='win32'?'npm.cmd':'npm';
-const result=JSON.parse(execFileSync(npm,['pack','--dry-run','--json','--ignore-scripts'],{cwd:new URL('..',import.meta.url),encoding:'utf8',shell:process.platform==='win32'}))[0];
+const npm = process.env.npm_execpath;
+assert.ok(npm && npm.endsWith('npm-cli.js'), 'Run check:package through npm; shell execution is not used');
+const result=JSON.parse(execFileSync(process.execPath,[npm,'pack','--dry-run','--json','--ignore-scripts'],{cwd:new URL('..',import.meta.url),encoding:'utf8'}))[0];
 assert.ok(result.files.some(f=>f.path==='tessembly.wasm'));
 assert.ok(result.files.some(f=>f.path==='LICENSE'),'MIT text must be packed');
 assert.ok(result.files.every(f=> !f.path.includes('node_modules') && !f.path.includes('.npmrc') && !f.path.startsWith('tests/') && !f.path.startsWith('scripts/')));

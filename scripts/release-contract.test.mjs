@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { makeTar } from './test-tar.mjs';
 import { createHash } from 'node:crypto';
 import { inspectArtifact, requireUnpublished, matchesRegistry } from './release-contract.mjs';
 
@@ -22,7 +22,7 @@ function fixture(t, mutateManifest = () => {}, mutateInfo = () => {}, license = 
   writeFileSync(join(source, 'package/package.json'), JSON.stringify(manifest));
   writeFileSync(join(source, 'package/LICENSE'), license);
   const file = `tessembly-${version}.tgz`;
-  execFileSync('tar', ['-czf', join(dir, file), '-C', source, 'package']);
+  writeFileSync(join(dir,file),makeTar([['package/package.json',JSON.stringify(manifest)],['package/LICENSE',license]]));
   const info = { name: 'tessembly', version, source_commit: sha, file, integrity: 'sha512-' + createHash('sha512').update(readFileSync(join(dir, file))).digest('base64'), license: 'MIT', license_sha256: createHash('sha256').update(license).digest('hex') };
   mutateInfo(info);
   writeFileSync(join(dir, 'build-info.json'), JSON.stringify(info));

@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { readLimitedFile } from './file-io.js';
+import { MAX_WASM_BYTES } from './limits.js';
 import { fromBytes } from './runtime.js';
 import { detectLanguage, TessemblyError } from './locale.js';
 export { PROFILE, DOCUMENT_SCHEMA, TessemblyError } from './runtime.js';
@@ -8,7 +9,7 @@ export async function createTessembly(options = {}) {
     systemLanguage: Intl.DateTimeFormat().resolvedOptions().locale });
   let bytes = options.wasm;
   if (bytes === undefined) {
-    try { bytes = await readFile(new URL('./tessembly.wasm', import.meta.url)); }
+    try { bytes = await readLimitedFile(new URL('./tessembly.wasm', import.meta.url), MAX_WASM_BYTES, language); }
     catch (cause) { throw new TessemblyError('WASM_LOAD_FAILED', { language, cause }); }
   }
   return fromBytes(bytes, { language });

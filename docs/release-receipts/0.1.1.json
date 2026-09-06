@@ -1,0 +1,9 @@
+{
+  "name": "tessembly",
+  "version": "0.1.1",
+  "license": "MIT",
+  "source_commit": "32a7d6b130916bb3e759a49eead9832032273f9f",
+  "workflow_run": 34057455742,
+  "integrity": "sha512-e4KxfLAkyOXUk3T2LK4BSYmyoZE8t3JRyOaO1HQgR59elN4e5pTgCYJNudbO2crMD9uB2laaXdBCTu2WkJzGAw==",
+  "license_sha256": "fb67b07174786fe4706a0b225e1f433bb98453ee948145b0fffd4908a19161c9"
+}

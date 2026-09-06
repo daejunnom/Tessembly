@@ -1,42 +1,51 @@
 import { resolveLanguage, TessemblyError } from './locale.js';
+import { inputBytes, MAX_BINARY_BYTES, MAX_WASM_BYTES } from './limits.js';
 export { TessemblyError } from './locale.js';
 export const PROFILE = 'tessembly.rfc2.precedence.v1';
 export const DOCUMENT_SCHEMA = 'tessembly.document.v1';
-const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 export async function fromBytes(bytes, { language = 'en' } = {}) {
-  let instance;
+  let x;
   try {
-    const loaded = await WebAssembly.instantiate(bytes, {});
-    instance = loaded instanceof WebAssembly.Instance ? loaded : loaded.instance;
-  } catch (cause) { throw new TessemblyError('WASM_LOAD_FAILED', { language, cause }); }
-  const x = instance.exports;
+    // Caller-supplied Wasm is trusted executable code, never a document or plugin fetched from input.
+    const suppliedModule = bytes instanceof WebAssembly.Module;
+    if (!suppliedModule && (!ArrayBuffer.isView(bytes) && !(bytes instanceof ArrayBuffer))) {
+      throw new TessemblyError('INVALID_ARGUMENTS', { language });
+    }
+    if (!suppliedModule && bytes.byteLength > MAX_WASM_BYTES) throw new TessemblyError('WASM_SIZE_LIMIT', { language });
+    const module = suppliedModule ? bytes : await WebAssembly.compile(bytes);
+    if (WebAssembly.Module.imports(module).length) throw new TessemblyError('WASM_ABI_MISMATCH', { language });
+    x = (await WebAssembly.instantiate(module, {})).exports;
+  } catch (cause) {
+    if (cause instanceof TessemblyError) throw cause;
+    throw new TessemblyError('WASM_LOAD_FAILED', { language, cause });
+  }
   if (!(x.memory instanceof WebAssembly.Memory) || typeof x.ts_abi_version !== 'function' || x.ts_abi_version() !== 1 ||
       ['ts_reserve_input','ts_run','ts_output_ptr','ts_output_len','ts_error_start','ts_error_end','ts_reset'].some(k => typeof x[k] !== 'function')) {
     throw new TessemblyError('WASM_ABI_MISMATCH', { language });
   }
-  let lang = resolveLanguage(language); let disposed = false;
+  let lang = resolveLanguage(language); let disposed = false; let failed = false;
   function invoke(op, input) {
     if (disposed) throw new TessemblyError('DISPOSED', { language: lang });
-    const textInput = ![4,8].includes(op);
-    if (textInput ? typeof input !== 'string' : !(input instanceof Uint8Array || input instanceof ArrayBuffer)) {
-      throw new TessemblyError('INVALID_ARGUMENTS', { language: lang });
-    }
-    const data = textInput ? encoder.encode(input) : input instanceof Uint8Array ? input : new Uint8Array(input);
-    if (data.byteLength > 1_100_000) throw new TessemblyError('INPUT_LIMIT', { language: lang });
+    if (failed) throw new TessemblyError('WASM_INSTANCE_FAILED', { language: lang });
+    const data = inputBytes(input, ![4,8].includes(op), lang);
     try {
       const ptr = x.ts_reserve_input(data.byteLength);
       if (!ptr && data.byteLength) throw new TessemblyError('INPUT_LIMIT', { language: lang });
       new Uint8Array(x.memory.buffer, ptr, data.byteLength).set(data);
       const status = x.ts_run(op);
-      // Copy the output: later calls may grow memory or overwrite the Rust buffer.
-      const out = new Uint8Array(x.memory.buffer, x.ts_output_ptr(), x.ts_output_len()).slice();
+      const outLength = x.ts_output_len();
+      if (outLength > MAX_BINARY_BYTES) throw new RangeError('WASM_OUTPUT_LIMIT');
+      // Own this snapshot; later calls may overwrite buffers or grow memory.
+      const out = new Uint8Array(x.memory.buffer, x.ts_output_ptr(), outLength).slice();
       if (status !== 0) throw new TessemblyError(decoder.decode(out), {
         language: lang, start: x.ts_error_start(), end: x.ts_error_end()
       });
       return out;
     } catch (cause) {
       if (cause instanceof TessemblyError) throw cause;
+      // A trap may skip Rust destructors. Never reuse potentially poisoned RefCell/allocator state.
+      failed = true; x = null;
       throw new TessemblyError('WASM_TRAP', { language: lang, cause });
     }
   }
@@ -63,6 +72,10 @@ export async function fromBytes(bytes, { language = 'en' } = {}) {
     checkDocument: (text) => ({ ...report(invoke(6,text)), schema: DOCUMENT_SCHEMA }),
     encodeDocument: (text) => invoke(7,text),
     decodeDocument: (bytes) => decoder.decode(invoke(8,bytes)),
-    dispose() { if (!disposed) x.ts_reset(); disposed = true; }
+    dispose() {
+      if (disposed) return;
+      try { x?.ts_reset(); } catch { failed = true; }
+      finally { disposed = true; x = null; }
+    }
   });
 }

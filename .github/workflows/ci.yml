@@ -1,60 +1,77 @@
-name: Rust contracts
+name: Rust platform contracts
 on:
   push:
     branches: [main]
-    paths:
-      - crates/**
-      - examples/**
-      - Cargo.toml
-      - Cargo.lock
-      - rust-toolchain.toml
-      - docs/**
-      - .github/workflows/ci.yml
+    paths: ['crates/**', 'examples/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'docs/**', '.github/workflows/ci.yml']
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
-concurrency:
-  group: rust-contracts-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
   contracts:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl }
+          - { os: windows-2022, target: x86_64-pc-windows-msvc }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: macos-14, target: aarch64-apple-darwin }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - name: Pin toolchain
-        run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with: { node-version: '24', package-manager-cache: false }
+      - name: musl build prerequisite
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update -qq && sudo apt-get install -y musl-tools
+      - name: Pin Rust and target
+        run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt --target "$TARGET"
       - name: Formatting
         run: cargo +1.85.0 fmt --all -- --check
-      - name: Compile and test reference libraries
-        run: cargo +1.85.0 test --locked --workspace --all-targets
+      - name: Platform and adversarial regression tests
+        run: cargo +1.85.0 test --locked --workspace --all-targets --target "$TARGET"
       - name: Clippy
-        run: cargo +1.85.0 clippy --locked --workspace --all-targets -- -D warnings
-      - name: Build reference host and external integrator tools
-        run: cargo +1.85.0 build --locked --workspace
-      - name: Reference smoke with external compact TCK
-        run: cargo +1.85.0 run --locked -p tessembly-conformance -- --report conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} test-port
-      - name: Reference smoke with external document TCK
-        run: cargo +1.85.0 run --locked -p tessembly-conformance --bin tessembly-document-tck -- --report document-conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} doc-port
-      - name: Check supplied examples
+        run: cargo +1.85.0 clippy --locked --workspace --all-targets --target "$TARGET" -- -D warnings
+      - name: Build native CLI and external developer tools
+        run: cargo +1.85.0 build --locked --workspace --target "$TARGET"
+      - name: Exercise the actual target executables
+        env:
+          SUFFIX: ${{ runner.os == 'Windows' && '.exe' || '' }}
         run: |
-          cargo +1.85.0 run --locked -p tessembly-cli -- lint --profile rfc2 --deny-unsat examples/*.tsm
-          cargo +1.85.0 run --locked -p tessembly-cli -- doc-check --deny-unsat examples/advanced/*.tsmd
-      - name: Keep conformance evidence
-        if: always()
-        uses: actions/upload-artifact@v6
+          BIN="target/$TARGET/debug"
+          "$BIN/tessembly-tck$SUFFIX" --report conformance-report.json -- "$BIN/tessembly$SUFFIX" test-port
+          "$BIN/tessembly-document-tck$SUFFIX" --report document-conformance-report.json -- "$BIN/tessembly$SUFFIX" doc-port
+          "$BIN/tessembly$SUFFIX" lint --profile rfc2 --deny-unsat examples/*.tsm
+          "$BIN/tessembly$SUFFIX" doc-check --deny-unsat examples/advanced/*.tsmd
+      - name: Build target-specific native artifacts
+        env:
+          SUFFIX: ${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: |
+          cargo +1.85.0 build --locked --workspace --target "$TARGET" --release
+          mkdir -p native-artifact
+          cp "target/$TARGET/release/tessembly$SUFFIX" "target/$TARGET/release/tessembly-tck$SUFFIX" "target/$TARGET/release/tessembly-document-tck$SUFFIX" native-artifact/
+          cp LICENSE native-artifact/
+          node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const files=fs.readdirSync("native-artifact");fs.writeFileSync("native-artifact/build-info.json",JSON.stringify({source_commit:process.env.GITHUB_SHA,target:process.env.TARGET,runner:process.env.RUNNER_OS,files:files.map(file=>({file,sha256:crypto.createHash("sha256").update(fs.readFileSync("native-artifact/"+file)).digest("hex")}))},null,2));'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: conformance-${{ runner.os }}
-          path: |
-            conformance-report.json
-            document-conformance-report.json
+          name: native-${{ matrix.os }}-${{ matrix.target }}
+          path: native-artifact/
           retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: contracts-${{ matrix.os }}-${{ matrix.target }}
+          path: '*conformance-report.json'
+          retention-days: 14
+          if-no-files-found: ignore

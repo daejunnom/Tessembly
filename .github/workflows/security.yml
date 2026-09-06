@@ -1,0 +1,36 @@
+name: Separate security review
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with: { node-version: '24', package-manager-cache: false }
+      - name: Pin Rust
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Mutation, model budgets, archive and release regressions
+        run: |
+          cargo +1.85.0 test --locked -p tessembly-cli --test security
+          cargo +1.85.0 test --locked -p tessembly-conformance --test transport
+          node --test scripts/release-contract.test.mjs scripts/security-release.test.mjs
+      - name: Audit documentation dependencies without install scripts
+        working-directory: apps/docs
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=low
+      - name: Independent exact-version advisory lookup
+        run: node scripts/dependency-audit.mjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: separate-security-evidence
+          path: security-evidence/
+          retention-days: 14
+          if-no-files-found: ignore

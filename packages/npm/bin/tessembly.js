@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { createTessembly, detectLanguage, errorMessage, PROFILE } from '../node.js';
+import { readLimitedFile } from '../file-io.js';
+import { MAX_TEXT_BYTES, MAX_BINARY_BYTES } from '../limits.js';
 const args = process.argv.slice(2);
 let language; let profile = PROFILE; let deny = false;
 function option(name) {
@@ -22,13 +24,13 @@ async function main() {
   }
   const operations = {check:'checkPattern', lint:'checkPattern', format:'normalizePattern', encode:'encodePattern', decode:'decodePattern',
     'doc-check':'checkDocument', 'doc-format':'normalizeDocument', 'doc-encode':'encodeDocument', 'doc-decode':'decodeDocument'};
-  const op = operations[command]; const conversion = /(?:en|de)code$/.test(command);
+  const op = Object.hasOwn(operations, command) ? operations[command] : undefined; const conversion = /(?:en|de)code$/.test(command);
   if (!op || args.length !== (conversion ? 2 : 1) || args.some(s=>s.startsWith('--'))) throw Object.assign(new Error(),{code:'INVALID_ARGUMENTS'});
   const t = await createTessembly({language});
   try {
-    const input = await readFile(args[0]);
+    const input = await readLimitedFile(args[0], command.endsWith('decode') ? MAX_BINARY_BYTES : MAX_TEXT_BYTES, language);
     const value = t[op](command.endsWith('decode') ? input : new TextDecoder('utf-8',{fatal:true}).decode(input), {profile});
-    if (conversion) await writeFile(args[1], value);
+    if (conversion) await writeFile(args[1], value, { flag: 'wx' });
     else if (typeof value === 'string') console.log(value);
     else { console.log(JSON.stringify(value)); if (deny && (value.draw==='UNSAT' || value.usage==='UNSAT')) process.exitCode=1; }
   } finally { t.dispose(); }

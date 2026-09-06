@@ -2,25 +2,25 @@ name: npm package contracts
 on:
   push:
     branches: [main]
-    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'Cargo.toml', 'LICENSE', 'scripts/release-contract*', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml', '.github/workflows/npm-release.yml']
+    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'Cargo.toml', 'LICENSE', 'scripts/**', '.github/workflows/security.yml', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml', '.github/workflows/npm-release.yml']
   workflow_dispatch:
   workflow_call:
 permissions:
   contents: read
 jobs:
   package:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
           package-manager-cache: false
       - name: Test release identity, license and failure contracts
-        run: node --test scripts/release-contract.test.mjs
+        run: node --test scripts/release-contract.test.mjs scripts/security-release.test.mjs
       - name: Build Rust-only Wasm with no registry dependencies
         run: |
           rustup toolchain install 1.85.0 --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
@@ -60,14 +60,14 @@ jobs:
           npm install --ignore-scripts "$GITHUB_WORKSPACE/packages/npm/$PACKAGE_FILE"
           npm ls --all
           node --input-type=module -e 'import {createTessembly} from "tessembly";const t=await createTessembly();if(t.checkPattern("P7:D(I<T<I)").draw!=="UNSAT")process.exit(1);console.log("INSTALLED_TARBALL_OK");t.dispose();'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '22'
           package-manager-cache: false
       - name: Check supported Node 22 API
         working-directory: packages/npm
         run: npm test
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
           package-manager-cache: false
@@ -81,11 +81,64 @@ jobs:
         env:
           NPM_TEST_PACKAGE_DIR: /tmp/tessembly-consumer/node_modules/tessembly
         run: npx playwright test --config playwright.npm.config.ts
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: tessembly-npm-package
+          name: tessembly-npm-candidate
           path: |
             packages/npm/*.tgz
             packages/npm/SHA256SUMS
             packages/npm/build-info.json
+          retention-days: 14
+  consumer:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, windows-2022, macos-15-intel, macos-14]
+        node: ['22', '24']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with: { name: tessembly-npm-candidate, path: .candidate }
+      - name: Install exactly the built tarball without scripts
+        run: |
+          FILE=$(node -p 'JSON.parse(require("node:fs").readFileSync(".candidate/build-info.json","utf8")).file')
+          npm install --ignore-scripts --no-audit --no-fund --prefix .consumer "./.candidate/$FILE"
+          node scripts/consumer-contract.mjs .consumer/node_modules/tessembly
+          cp .consumer/node_modules/tessembly/tessembly.wasm packages/npm/tessembly.wasm
+      - name: Full npm regressions and actual installed memory probe
+        run: |
+          node --test packages/npm/tests/*.test.mjs
+          node scripts/resource-probe.mjs .consumer/node_modules/tessembly resource-report.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: npm-resource-${{ matrix.os }}-node${{ matrix.node }}
+          path: resource-report.json
+          retention-days: 14
+  security:
+    needs: consumer
+    uses: ./.github/workflows/security.yml
+  ready:
+    needs: [package, consumer, security]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with: { name: tessembly-npm-candidate, path: package }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: tessembly-npm-package
+          path: package/
+          if-no-files-found: error
           retention-days: 14

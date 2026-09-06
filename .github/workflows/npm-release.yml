@@ -12,7 +12,7 @@ on:
       expected_version:
         description: Must equal the intentionally committed npm package version. Never overwrites an existing version.
         type: string
-        default: '0.1.1'
+        default: '0.1.2'
         required: true
 permissions:
   contents: read
@@ -23,11 +23,14 @@ jobs:
   verify:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/npm.yml
+  native:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
   publish:
     if: github.ref == 'refs/heads/main'
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
+    needs: [verify, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     environment: npm
     permissions:
       contents: read
@@ -39,19 +42,20 @@ jobs:
       NPM_TOKEN: ''
       NPM_ID_TOKEN: ''
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
           package-manager-cache: false
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: tessembly-npm-package
           path: .release-package
       - name: Verify exact MIT artifact identity and integrity
+        id: artifact
         run: |
           (cd .release-package && sha256sum --check SHA256SUMS)
           node scripts/release-contract.mjs check-registry .release-package
@@ -82,14 +86,17 @@ jobs:
         run: |
           echo 'MIT artifact verified. Nothing was published. npm Trusted Publisher authorization has NOT been tested.' >> "$GITHUB_STEP_SUMMARY"
       - name: Publish the verified MIT package using OIDC only
-        if: inputs.mode == 'publish'
+        if: inputs.mode == 'publish' && steps.artifact.outputs.already_published != 'true'
         working-directory: .release-package
         run: |
           set -euo pipefail
           unset NODE_AUTH_TOKEN NPM_TOKEN NPM_ID_TOKEN NPM_CONFIG_TOKEN NPM_CONFIG__AUTH npm_config__auth
           npm publish "./tessembly-${EXPECTED_VERSION}.tgz" --registry=https://registry.npmjs.org/ --access public --ignore-scripts --provenance
-      - name: Confirm registry version, MIT license and integrity
+      - name: Confirm registry version, MIT license and actual published bytes
         if: inputs.mode == 'publish'
         run: |
           node scripts/release-contract.mjs confirm .release-package
           echo "Published and verified tessembly@${EXPECTED_VERSION}: MIT, expected SHA-512 and zero npm dependencies. OIDC-only workflow; no bootstrap token was loaded." >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve original artifact for confirmation-only recovery
+        if: failure()
+        run: echo 'If npm accepted the upload, do not delete or republish. Confirm the original artifact or its committed receipt; see docs/PUBLISHING.md.' >> "$GITHUB_STEP_SUMMARY"
