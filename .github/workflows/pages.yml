@@ -1,0 +1,76 @@
+name: Documentation Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/docs/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/docs/package-lock.json
+      - name: Install locked documentation dependencies
+        working-directory: apps/docs
+        run: npm ci
+      - name: Record deployed source identity
+        working-directory: apps/docs
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA, site:"Tessembly", semantic_profile:"tessembly.rfc2.precedence.v1"}) + "\n");'
+      - name: Check and prerender all chapters
+        working-directory: apps/docs
+        run: |
+          npm run check
+          npm run build
+      - name: Install browser for documentation E2E
+        working-directory: apps/docs
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser contracts
+        working-directory: apps/docs
+        run: npm run test:e2e
+      - name: Keep browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-browser-evidence
+          path: |
+            apps/docs/playwright-report
+            apps/docs/test-results
+          retention-days: 7
+      - name: Upload verified Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/docs/build
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
