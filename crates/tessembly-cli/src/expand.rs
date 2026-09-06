@@ -133,6 +133,23 @@ pub fn variants(root: &Node, budget: &mut Budget) -> Result<Vec<Variant>> {
             out.retain(|v| matches(&v.queue, ps));
         }
         if let Some(ps) = &n.constraints.use_order {
+            let existing: usize = out
+                .iter()
+                .map(|v| {
+                    v.queue.len()
+                        + v.uses
+                            .iter()
+                            .map(|s| s.predicates.len() * 8 + 3)
+                            .sum::<usize>()
+                })
+                .sum();
+            let added = out
+                .len()
+                .checked_mul(ps.len().saturating_mul(8).saturating_add(3))
+                .ok_or_else(|| Error::new("INCOMPLETE"))?;
+            if added > MAX_CELLS.saturating_sub(existing) {
+                return Err(Error::new("INCOMPLETE"));
+            }
             for v in &mut out {
                 v.uses.push(UseScope {
                     start: 0,
@@ -160,6 +177,7 @@ pub fn variants(root: &Node, budget: &mut Budget) -> Result<Vec<Variant>> {
     expand(root, budget)
 }
 pub fn draw_queues(root: &Node, budget: &mut Budget) -> Result<BTreeSet<Vec<Piece>>> {
+    root.validate()?;
     if root.contains_use() {
         return Err(Error::new("UNSUPPORTED_USE_IN_DRAW_ENUMERATION"));
     }
@@ -206,5 +224,23 @@ pub fn check_use(
         Ok(Some(false))
     } else {
         Err(Error::new("QUEUE_NOT_IN_PATTERN"))
+    }
+}
+
+#[cfg(test)]
+mod security_tests {
+    use super::*;
+    #[test]
+    fn use_predicates_are_budgeted_before_permutation_clones() {
+        let text = format!("P7:U({})", vec!["T"; 4096].join(","));
+        let root = tessembly_text::parse(&text, tessembly_core::PROFILE).unwrap();
+        let mut budget = Budget {
+            steps: 0,
+            remaining: 1_000_000,
+        };
+        assert_eq!(
+            variants(&root, &mut budget).err().unwrap().code,
+            "INCOMPLETE"
+        );
     }
 }

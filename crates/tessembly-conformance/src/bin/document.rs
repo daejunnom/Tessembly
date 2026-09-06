@@ -1,14 +1,7 @@
 //! External-integrator tool. Only talks to the supplied host process; imports no product parser.
 #![forbid(unsafe_code)]
 use serde_json::{json, Value};
-use std::{
-    env, fs,
-    io::{Read, Write},
-    process::{Command, ExitCode, Stdio},
-    sync::mpsc,
-    thread,
-    time::{Duration, Instant},
-};
+use std::{env, fs, process::ExitCode, time::Duration};
 const PROFILE: &str = "tessembly.rfc2.precedence.v1";
 const PROTOCOL: &str = "tessembly.document-test-port.v1";
 fn doc(body: &str) -> String {
@@ -18,49 +11,11 @@ fn request(argv: &[String], mut input: Value, id: usize) -> Result<Value, String
     input["id"] = json!(id);
     input["protocol"] = json!(PROTOCOL);
     input["profile"] = json!(PROFILE);
-    let mut child = Command::new(&argv[0])
-        .args(&argv[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    let stdout = child.stdout.take().ok_or("NO_STDOUT")?;
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let r = stdout
-            .take(8_388_609)
-            .read_to_end(&mut bytes)
-            .map(|_| bytes);
-        let _ = tx.send(r);
-    });
-    let mut stdin = child.stdin.take().ok_or("NO_STDIN")?;
-    if let Err(e) = writeln!(stdin, "{input}") {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(e.to_string());
-    }
-    drop(stdin);
-    let start = Instant::now();
-    let exit = loop {
-        if let Some(exit) = child.try_wait().map_err(|e| e.to_string())? {
-            break exit;
-        }
-        if start.elapsed() > Duration::from_secs(10) {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("HOST_TIMEOUT".into());
-        }
-        thread::sleep(Duration::from_millis(5));
-    };
-    let bytes = rx
-        .recv_timeout(Duration::from_secs(2))
-        .map_err(|_| "HOST_STDOUT_NOT_CLOSED")?
-        .map_err(|e| e.to_string())?;
-    if !exit.success() || bytes.len() > 8_388_608 {
-        return Err("HOST_EXIT_OR_RESPONSE_LIMIT".into());
-    }
+    let bytes = tessembly_conformance::exchange(
+        argv,
+        format!("{input}\n").into_bytes(),
+        Duration::from_secs(10),
+    )?;
     let v: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     if v["id"] != id || v["protocol"] != PROTOCOL || v["profile"] != PROFILE {
         return Err("ENVELOPE_MISMATCH".into());

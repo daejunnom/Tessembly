@@ -1,4 +1,5 @@
-use crate::{Error, Result, Span, MAX_DEPTH, MAX_DRAWS, MAX_NODES, MAX_PREDICATES};
+use crate::budget::ModelBudget;
+use crate::{Error, Result, Span, MAX_DEPTH, MAX_DRAWS, MAX_INPUT};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(u8)]
@@ -99,12 +100,16 @@ impl Node {
     }
     /// Validates even manually built ASTs, before recursive consumers process them.
     pub fn validate(&self) -> Result<usize> {
-        fn visit(n: &Node, depth: usize, count: &mut usize, preds: &mut usize) -> Result<usize> {
-            *count += 1;
-            if depth > MAX_DEPTH || *count > MAX_NODES {
+        self.validate_with_budget(&mut ModelBudget::default())
+    }
+    /// Validate with a document-wide budget; embedded patterns cannot reset limits.
+    pub fn validate_with_budget(&self, budget: &mut ModelBudget) -> Result<usize> {
+        fn visit(n: &Node, depth: usize, budget: &mut ModelBudget) -> Result<usize> {
+            budget.nodes(1)?;
+            if depth > MAX_DEPTH {
                 return Err(Error::new("AST_LIMIT"));
             }
-            if n.span.start > n.span.end {
+            if n.span.start > n.span.end || n.span.end > MAX_INPUT {
                 return Err(Error::new("INVALID_SPAN"));
             }
             for block in [&n.constraints.draw, &n.constraints.use_order]
@@ -114,11 +119,11 @@ impl Node {
                 if block.is_empty() {
                     return Err(Error::new("EMPTY_CONSTRAINT"));
                 }
-                *preds += block.len();
-                if *preds > MAX_PREDICATES {
-                    return Err(Error::new("PREDICATE_LIMIT"));
-                }
-                if block.iter().any(|p| p.span.start > p.span.end) {
+                budget.predicates(block.len())?;
+                if block
+                    .iter()
+                    .any(|p| p.span.start > p.span.end || p.span.end > MAX_INPUT)
+                {
                     return Err(Error::new("INVALID_SPAN"));
                 }
             }
@@ -134,7 +139,7 @@ impl Node {
                     }
                     usize::from(*take)
                 }
-                NodeKind::Scope(child) => visit(child, depth + 1, count, preds)?,
+                NodeKind::Scope(child) => visit(child, depth + 1, budget)?,
                 NodeKind::Concat(children) | NodeKind::Union(children) => {
                     if children.is_empty() {
                         return Err(Error::new("EMPTY_SEQUENCE"));
@@ -143,7 +148,7 @@ impl Node {
                     let mut total = 0;
                     let mut first = None;
                     for child in children {
-                        let len = visit(child, depth + 1, count, preds)?;
+                        let len = visit(child, depth + 1, budget)?;
                         if union {
                             if first.is_some_and(|x| x != len) {
                                 return Err(Error::new("MIXED_SEQUENCE_LENGTHS"));
@@ -162,6 +167,6 @@ impl Node {
             };
             Ok(len)
         }
-        visit(self, 0, &mut 0, &mut 0)
+        visit(self, 0, budget)
     }
 }

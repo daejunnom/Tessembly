@@ -79,6 +79,7 @@ pub(crate) fn validate(
     config: &BTreeMap<String, Value>,
     registry: &BTreeSet<String>,
 ) -> Result<()> {
+    crate::schema::bounded_config(config)?;
     for (key, v) in config {
         match key.as_str() {
             "registry" => {}
@@ -191,6 +192,8 @@ pub fn resolve(
     document: &BTreeMap<String, Value>,
     host: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, Value>> {
+    crate::schema::bounded_config(document)?;
+    crate::schema::bounded_config(host)?;
     let mut result = host.clone();
     for (k, v) in document {
         if result.get(k).is_some_and(|old| old != v) {

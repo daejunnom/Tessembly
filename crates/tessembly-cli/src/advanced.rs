@@ -1,7 +1,6 @@
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
-    fs,
     io::{self, BufRead, Read, Write},
 };
 use tessembly_core::{Error, Result, PROFILE};
@@ -191,7 +190,7 @@ pub fn run(command: &str, args: Vec<String>) -> Result<u8> {
         }
         let d = wire::decode(&crate::read_file(&args[0], 1_048_576)?)?;
         let rendered = d.to_text()?;
-        fs::write(&args[1], rendered).map_err(|_| Error::new("WRITE_FAILED"))?;
+        crate::write_new(&args[1], rendered).map_err(|_| Error::new("WRITE_FAILED"))?;
         return Ok(0);
     }
     if command == "doc-encode" {
@@ -199,7 +198,7 @@ pub fn run(command: &str, args: Vec<String>) -> Result<u8> {
             return Err(Error::new("INVALID_ARGUMENTS"));
         }
         let d = parse(&text(&args[0])?)?;
-        fs::write(&args[1], wire::encode(&d)?).map_err(|_| Error::new("WRITE_FAILED"))?;
+        crate::write_new(&args[1], wire::encode(&d)?).map_err(|_| Error::new("WRITE_FAILED"))?;
         return Ok(0);
     }
     if !matches!(command, "doc-check" | "doc-format") {

@@ -1,8 +1,9 @@
 //! Experimental structural AST wire v1. Not a source-text wrapper or expanded queue file.
 #![forbid(unsafe_code)]
+use tessembly_core::budget::ModelBudget;
 use tessembly_core::{
     Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span, MAX_DEPTH,
-    MAX_NODES, MAX_PREDICATES,
+    MAX_INPUT, MAX_NODES, MAX_PREDICATES,
 };
 
 const MAGIC: &[u8; 6] = b"TSMB\x01\x02"; // wire 1, explicit RFC2 semantics
@@ -101,13 +102,12 @@ pub fn encode(doc: &Document) -> Result<Vec<u8>> {
     out.extend(body);
     Ok(out)
 }
-struct Reader<'a> {
+struct Reader<'a, 'b> {
     b: &'a [u8],
     at: usize,
-    nodes: usize,
-    predicates: usize,
+    budget: &'b mut ModelBudget,
 }
-impl Reader<'_> {
+impl Reader<'_, '_> {
     fn byte(&mut self) -> Result<u8> {
         let b = *self
             .b
@@ -138,17 +138,17 @@ impl Reader<'_> {
             start: self.var()?,
             end: self.var()?,
         };
-        if s.start > s.end {
+        if s.start > s.end || s.end > MAX_INPUT {
             return Err(Error::new("INVALID_SPAN"));
         }
         Ok(s)
     }
     fn predicates(&mut self) -> Result<Vec<Predicate>> {
         let count = self.var()?;
-        if count == 0 || count > MAX_PREDICATES.saturating_sub(self.predicates) {
+        if count == 0 || count > MAX_PREDICATES {
             return Err(Error::new("PREDICATE_LIMIT"));
         }
-        self.predicates += count;
+        self.budget.predicates(count)?;
         let mut out = Vec::new();
         for _ in 0..count {
             let tag = self.byte()?;
@@ -168,8 +168,8 @@ impl Reader<'_> {
         Ok(out)
     }
     fn node(&mut self, depth: usize) -> Result<Node> {
-        self.nodes += 1;
-        if depth > MAX_DEPTH || self.nodes > MAX_NODES {
+        self.budget.nodes(1)?;
+        if depth > MAX_DEPTH {
             return Err(Error::new("AST_LIMIT"));
         }
         let tag = self.byte()?;
@@ -220,6 +220,10 @@ impl Reader<'_> {
     }
 }
 pub fn decode(bytes: &[u8]) -> Result<Document> {
+    decode_with_budget(bytes, &mut ModelBudget::default())
+}
+/// Structural decoding with a shared aggregate budget for embedded patterns.
+pub fn decode_with_budget(bytes: &[u8], budget: &mut ModelBudget) -> Result<Document> {
     if bytes.len() > MAX_BYTES + 16 {
         return Err(Error::new("BINARY_LIMIT"));
     }
@@ -229,8 +233,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document> {
     let mut r = Reader {
         b: bytes,
         at: 6,
-        nodes: 0,
-        predicates: 0,
+        budget,
     };
     let len = r.var()?;
     if len != bytes.len().saturating_sub(r.at) {

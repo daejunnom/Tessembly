@@ -58,6 +58,9 @@ pub struct HoldState {
 }
 impl HoldState {
     pub fn validate(&self) -> Result<()> {
+        if self.queue.len() > crate::MAX_DRAWS {
+            return Err(Error::new("DRAW_LIMIT"));
+        }
         if self.cursor > self.queue.len() {
             return Err(Error::new("INVALID_CURSOR"));
         }

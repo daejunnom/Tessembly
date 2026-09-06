@@ -2,6 +2,7 @@
 //! No source text is reparsed when decoding. Unknown critical sections fail closed.
 use crate::{Call, Document, NamedPredicate, Value};
 use std::collections::{BTreeMap, BTreeSet};
+use tessembly_core::budget::ModelBudget;
 use tessembly_core::{Error, Result, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES};
 const MAGIC: &[u8; 6] = b"TSDC\x01\x02";
 const LIMIT: usize = 1_048_576;
@@ -125,12 +126,12 @@ pub fn encode(doc: &Document) -> Result<Vec<u8>> {
     }
     Ok(out)
 }
-struct Reader<'a> {
+struct Reader<'a, 'b> {
     b: &'a [u8],
     at: usize,
-    nodes: usize,
+    budget: &'b mut ModelBudget,
 }
-impl<'a> Reader<'a> {
+impl<'a> Reader<'a, '_> {
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
         let end = self
             .at
@@ -162,6 +163,7 @@ impl<'a> Reader<'a> {
         if b.len() > MAX_INPUT {
             return Err(Error::new("INPUT_LIMIT"));
         }
+        self.budget.text(b.len())?;
         String::from_utf8(b.to_vec()).map_err(|_| Error::new("INVALID_UTF8"))
     }
     fn count(&mut self, max: usize) -> Result<usize> {
@@ -192,8 +194,8 @@ impl<'a> Reader<'a> {
         Ok(out)
     }
     fn value(&mut self, depth: usize) -> Result<Value> {
-        self.nodes += 1;
-        if depth > MAX_DEPTH || self.nodes > MAX_NODES {
+        self.budget.nodes(1)?;
+        if depth > MAX_DEPTH {
             return Err(Error::new("DOCUMENT_LIMIT"));
         }
         Ok(match self.byte()? {
@@ -213,7 +215,8 @@ impl<'a> Reader<'a> {
                 named: self.mapping(depth)?,
             }),
             7 => {
-                let doc = tessembly_codec::decode(self.bytes()?)?;
+                let encoded = self.bytes()?;
+                let doc = tessembly_codec::decode_with_budget(encoded, self.budget)?;
                 if !doc.optional_extensions.is_empty() {
                     return Err(Error::new("NESTED_METADATA_NOT_SUPPORTED"));
                 }
@@ -224,6 +227,7 @@ impl<'a> Reader<'a> {
     }
     fn predicates(&mut self) -> Result<Vec<NamedPredicate>> {
         let n = self.count(MAX_PREDICATES)?;
+        self.budget.predicates(n)?;
         let mut out = Vec::new();
         for _ in 0..n {
             out.push(match self.byte()? {
@@ -256,7 +260,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document> {
     let mut r = Reader {
         b: bytes,
         at: 6,
-        nodes: 0,
+        budget: &mut ModelBudget::default(),
     };
     let count = r.count(65)?;
     let mut ids = BTreeSet::new();
@@ -276,7 +280,11 @@ pub fn decode(bytes: &[u8]) -> Result<Document> {
             if flags != 1 {
                 return Err(Error::new("DOCUMENT_SECTION_MUST_BE_CRITICAL"));
             }
-            let mut b = Reader { b, at: 0, nodes: 0 };
+            let mut b = Reader {
+                b,
+                at: 0,
+                budget: r.budget,
+            };
             let doc = Document {
                 config: b.mapping(0)?,
                 source: Some(b.value(0)?),

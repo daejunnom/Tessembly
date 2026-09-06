@@ -3,14 +3,7 @@
 mod oracle;
 use oracle::{before, set};
 use serde_json::{json, Value};
-use std::{
-    collections::BTreeSet,
-    env,
-    io::{Read, Write},
-    process::{Command, Stdio},
-    thread,
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeSet, env, time::Duration};
 const PROFILE: &str = "tessembly.rfc2.precedence.v1";
 const PROTOCOL: &str = "tessembly.test-port.v1";
 
@@ -20,43 +13,11 @@ fn request(command: &[String], mut req: Value, id: usize) -> Result<Value, Strin
     if req.get("profile").is_none() {
         req["profile"] = json!(PROFILE);
     }
-    let mut child = Command::new(&command[0])
-        .args(&command[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    let stdout = child.stdout.take().ok_or("no stdout")?;
-    let reader = thread::spawn(move || {
-        let mut b = Vec::new();
-        stdout.take(8_388_609).read_to_end(&mut b).map(|_| b)
-    });
-    let mut stdin = child.stdin.take().ok_or("no stdin")?;
-    writeln!(stdin, "{req}").map_err(|e| e.to_string())?;
-    drop(stdin);
-    let start = Instant::now();
-    let exit = loop {
-        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-            break status;
-        }
-        if start.elapsed() > Duration::from_secs(10) {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("HOST_TIMEOUT".into());
-        }
-        thread::sleep(Duration::from_millis(5));
-    };
-    let bytes = reader
-        .join()
-        .map_err(|_| "reader panicked")?
-        .map_err(|e| e.to_string())?;
-    if !exit.success() {
-        return Err(format!("host exit: {exit}"));
-    }
-    if bytes.len() > 8_388_608 {
-        return Err("RESPONSE_LIMIT".into());
-    }
+    let bytes = tessembly_conformance::exchange(
+        command,
+        format!("{req}\n").into_bytes(),
+        Duration::from_secs(10),
+    )?;
     let response: Value =
         serde_json::from_slice(&bytes).map_err(|e| format!("invalid/surplus JSON: {e}"))?;
     if response["id"] != id || response["protocol"] != PROTOCOL || response["profile"] != PROFILE {

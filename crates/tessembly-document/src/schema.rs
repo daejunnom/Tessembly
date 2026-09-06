@@ -1,9 +1,13 @@
 use crate::{config, source, Call, Document, NamedPredicate, Value};
 use std::collections::BTreeSet;
-use tessembly_core::{Error, Result, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES};
+use tessembly_core::budget::ModelBudget;
+use tessembly_core::{Error, Result, MAX_DEPTH, MAX_INPUT};
 
 pub(crate) fn validate(doc: &Document) -> Result<()> {
-    let mut budget = 0usize;
+    let mut budget = ModelBudget::default();
+    for key in doc.config.keys() {
+        budget.text(key.len())?;
+    }
     for value in doc.config.values().chain(doc.source.iter()) {
         bounded(value, 0, &mut budget)?;
     }
@@ -18,11 +22,10 @@ pub(crate) fn validate(doc: &Document) -> Result<()> {
             .ok_or_else(|| Error::new("SUPPLY_REQUIRED"))?,
         &registry,
     )?;
-    if doc.draw.len().saturating_add(doc.use_order.len()) > MAX_PREDICATES {
-        return Err(Error::new("PREDICATE_LIMIT"));
-    }
+    budget.predicates(doc.draw.len().saturating_add(doc.use_order.len()))?;
     for p in doc.draw.iter().chain(&doc.use_order) {
-        let check = |s: &String| {
+        let mut check = |s: &String| {
+            budget.text(s.len())?;
             if registry.contains(s) {
                 Ok(())
             } else {
@@ -129,12 +132,16 @@ fn identifier(s: &str) -> bool {
             .enumerate()
             .all(|(i, b)| b.is_ascii_alphabetic() || b == b'_' || (i > 0 && b.is_ascii_digit()))
 }
-fn bounded_call(c: &Call, depth: usize, count: &mut usize) -> Result<()> {
+fn bounded_call(c: &Call, depth: usize, count: &mut ModelBudget) -> Result<()> {
+    count.text(c.name.len())?;
+    for key in c.named.keys() {
+        count.text(key.len())?;
+    }
     if !identifier(&c.name) || c.named.keys().any(|k| !identifier(k)) {
         return Err(Error::new("INVALID_IDENTIFIER"));
     }
-    *count += 1;
-    if depth > MAX_DEPTH || *count > MAX_NODES {
+    count.nodes(1)?;
+    if depth > MAX_DEPTH {
         return Err(Error::new("DOCUMENT_LIMIT"));
     }
     for v in c.args.iter().chain(c.named.values()) {
@@ -142,9 +149,9 @@ fn bounded_call(c: &Call, depth: usize, count: &mut usize) -> Result<()> {
     }
     Ok(())
 }
-fn bounded(v: &Value, depth: usize, count: &mut usize) -> Result<()> {
-    *count += 1;
-    if depth > MAX_DEPTH || *count > MAX_NODES {
+fn bounded(v: &Value, depth: usize, count: &mut ModelBudget) -> Result<()> {
+    count.nodes(1)?;
+    if depth > MAX_DEPTH {
         return Err(Error::new("DOCUMENT_LIMIT"));
     }
     match v {
@@ -156,6 +163,9 @@ fn bounded(v: &Value, depth: usize, count: &mut usize) -> Result<()> {
         {
             return Err(Error::new("INVALID_STRING"))
         }
+        Value::Text(s) | Value::Symbol(s) => {
+            count.text(s.len())?;
+        }
         Value::List(xs) => {
             for x in xs {
                 bounded(x, depth + 1, count)?;
@@ -163,9 +173,19 @@ fn bounded(v: &Value, depth: usize, count: &mut usize) -> Result<()> {
         }
         Value::Call(c) => bounded_call(c, depth + 1, count)?,
         Value::Pattern(n) => {
-            n.validate()?;
+            n.validate_with_budget(count)?;
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// Bound public typed settings before cloning or recursive interpretation.
+pub(crate) fn bounded_config(config: &std::collections::BTreeMap<String, Value>) -> Result<()> {
+    let mut budget = ModelBudget::default();
+    for (key, value) in config {
+        budget.text(key.len())?;
+        bounded(value, 0, &mut budget)?;
     }
     Ok(())
 }

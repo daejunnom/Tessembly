@@ -1,5 +1,6 @@
 //! Format types and bounded state contracts. No parser, enumeration, or I/O.
 #![forbid(unsafe_code)]
+pub mod budget;
 pub mod config;
 pub mod hold;
 pub mod model;

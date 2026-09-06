@@ -5,15 +5,28 @@ use tessembly_core::{Error, Result, MAX_DRAWS};
 pub(crate) fn ids(value: &Value, registry: &BTreeSet<String>) -> Result<Vec<String>> {
     let out: Vec<String> = match value {
         Value::Text(s) => {
+            if s.is_empty() || s.len() > MAX_DRAWS {
+                return Err(Error::new("PIECE_LIST_LIMIT"));
+            }
             if !s.bytes().all(|b| b"IOTSZJL".contains(&b)) {
                 return Err(Error::new("USE_LIST_FOR_CUSTOM_IDS"));
             }
             s.chars().map(|c| c.to_string()).collect()
         }
-        Value::List(xs) => xs
-            .iter()
-            .map(|v| v.text().map(str::to_owned))
-            .collect::<Result<_>>()?,
+        Value::List(xs) => {
+            if xs.is_empty() || xs.len() > MAX_DRAWS {
+                return Err(Error::new("PIECE_LIST_LIMIT"));
+            }
+            xs.iter()
+                .map(|v| {
+                    let id = v.text()?;
+                    if id.len() > 128 {
+                        return Err(Error::new("INVALID_PIECE_ID"));
+                    }
+                    Ok(id.to_owned())
+                })
+                .collect::<Result<_>>()?
+        }
         _ => return Err(Error::new("EXPECTED_PIECE_LIST")),
     };
     if out.is_empty() || out.len() > MAX_DRAWS {

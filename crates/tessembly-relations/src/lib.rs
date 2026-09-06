@@ -1,6 +1,6 @@
 //! Pure relationship evaluation and local contradiction analysis. No queue enumeration.
 #![forbid(unsafe_code)]
-use tessembly_core::{Node, NodeKind, Piece, Predicate, PredicateKind, Span};
+use tessembly_core::{Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span};
 
 pub fn matches(queue: &[Piece], predicates: &[Predicate]) -> bool {
     let mut first = [None; 7];
@@ -96,8 +96,23 @@ pub struct Analysis {
     pub draw_unsat: bool,
     pub execution_unsat: bool,
     pub diagnostics: Vec<Diagnostic>,
+    /// An invalid typed AST is NOT_CHECKED, not an empty solution set.
+    pub input_error: Option<Error>,
 }
 pub fn analyze(root: &Node) -> Analysis {
+    match analyze_checked(root) {
+        Ok(analysis) => analysis,
+        Err(error) => Analysis {
+            draw_unsat: false,
+            execution_unsat: false,
+            diagnostics: vec![],
+            input_error: Some(error),
+        },
+    }
+}
+/// Checked entry point recommended for consumer-supplied typed ASTs.
+pub fn analyze_checked(root: &Node) -> Result<Analysis> {
+    root.validate()?;
     let mut diagnostics = Vec::new();
     fn visit(n: &Node, ds: &mut Vec<Diagnostic>) -> (bool, bool) {
         let mut d = false;
@@ -134,9 +149,10 @@ pub fn analyze(root: &Node) -> Analysis {
         (d || child_d, d || u || child_e)
     }
     let (draw_unsat, execution_unsat) = visit(root, &mut diagnostics);
-    Analysis {
+    Ok(Analysis {
         draw_unsat,
         execution_unsat,
         diagnostics,
-    }
+        input_error: None,
+    })
 }

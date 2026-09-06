@@ -11,8 +11,30 @@ use std::{
 };
 use tessembly_core::{Error, Result, PROFILE, PROTOCOL};
 
+fn write_new(path: &str, bytes: impl AsRef<[u8]>) -> Result<()> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|_| Error::new("OUTPUT_EXISTS_OR_UNWRITABLE"))?
+        .write_all(bytes.as_ref())
+        .map_err(|_| Error::new("WRITE_FAILED"))
+}
 fn read_file(path: &str, limit: usize) -> Result<Vec<u8>> {
+    if !fs::metadata(path)
+        .map_err(|_| Error::new("READ_FAILED"))?
+        .is_file()
+    {
+        return Err(Error::new("REGULAR_FILE_REQUIRED"));
+    }
     let f = fs::File::open(path).map_err(|_| Error::new("READ_FAILED"))?;
+    if !f
+        .metadata()
+        .map_err(|_| Error::new("READ_FAILED"))?
+        .is_file()
+    {
+        return Err(Error::new("REGULAR_FILE_REQUIRED"));
+    }
     let mut bytes = Vec::new();
     f.take(limit as u64 + 1)
         .read_to_end(&mut bytes)
@@ -88,7 +110,7 @@ fn run(mut args: Vec<String>, language: locale::Language) -> Result<u8> {
         if !doc.optional_extensions.is_empty() {
             return Err(Error::new("OPAQUE_METADATA_WOULD_BE_LOST"));
         }
-        fs::write(&args[1], tessembly_text::format(&doc.root)?)
+        write_new(&args[1], tessembly_text::format(&doc.root)?)
             .map_err(|_| Error::new("WRITE_FAILED"))?;
         eprintln!(
             "{}: {PROFILE}",
@@ -141,7 +163,7 @@ fn run(mut args: Vec<String>, language: locale::Language) -> Result<u8> {
                     root,
                     optional_extensions: vec![],
                 };
-                fs::write(&files[1], tessembly_codec::encode(&doc)?)
+                write_new(&files[1], tessembly_codec::encode(&doc)?)
                     .map_err(|_| Error::new("WRITE_FAILED"))?;
             }
             _ => {
