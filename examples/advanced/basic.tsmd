@@ -1,0 +1,9 @@
+tessembly "tessembly.rfc2.precedence.v1";
+config {
+    rule = seven_bag();
+    start = boundary();
+    see = view(next=5, active=true, hold=true, memory=history);
+    hold = slot(initial=empty);
+}
+supply("P4");
+draw(I<TS, I);

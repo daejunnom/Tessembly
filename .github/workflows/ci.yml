@@ -2,9 +2,20 @@ name: Rust contracts
 on:
   push:
     branches: [main]
+    paths:
+      - crates/**
+      - examples/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - docs/**
+      - .github/workflows/ci.yml
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: rust-contracts-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   contracts:
     strategy:
@@ -22,18 +33,26 @@ jobs:
           persist-credentials: false
       - name: Pin toolchain
         run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
-      - name: Compile and test
+      - name: Compile and test reference libraries
         run: cargo +1.85.0 test --locked --workspace --all-targets
       - name: Clippy
         run: cargo +1.85.0 clippy --locked --workspace --all-targets -- -D warnings
-      - name: Build host and independent TCK
+      - name: Build reference host and external integrator tools
         run: cargo +1.85.0 build --locked --workspace
-      - name: Black-box contracts
+      - name: Reference smoke with external compact TCK
         run: cargo +1.85.0 run --locked -p tessembly-conformance -- --report conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} test-port
-      - name: Static examples
-        run: cargo +1.85.0 run --locked -p tessembly-cli -- lint --profile rfc2 --deny-unsat examples/*.tsm
-      - name: Dependency and result evidence
-        if: always()
+      - name: Reference smoke with external document TCK
+        run: cargo +1.85.0 run --locked -p tessembly-conformance --bin tessembly-document-tck -- --report document-conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} doc-port
+      - name: Check supplied examples
         run: |
-          test ! -f Cargo.lock || cat Cargo.lock
-          test ! -f conformance-report.json || cat conformance-report.json
+          cargo +1.85.0 run --locked -p tessembly-cli -- lint --profile rfc2 --deny-unsat examples/*.tsm
+          cargo +1.85.0 run --locked -p tessembly-cli -- doc-check --deny-unsat examples/advanced/*.tsmd
+      - name: Keep conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-${{ runner.os }}
+          path: |
+            conformance-report.json
+            document-conformance-report.json
+          retention-days: 14

@@ -1,0 +1,11 @@
+tessembly "tessembly.rfc2.precedence.v1";
+config {
+    registry = ["PENTO_P"];
+    rule = from_source;
+    start = boundary();
+    see = view(next=3, hold=false, bag=known);
+    hold = none();
+}
+// A declaration for a consumer-owned randomizer, not a sampling command.
+supply(take(8, bag(["I", "PENTO_P", "PENTO_P"], weights=[1,2,2])));
+draw(before("PENTO_P", "I"), present("PENTO_P"));

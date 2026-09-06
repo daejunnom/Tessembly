@@ -23,7 +23,16 @@ fn test_port() -> Result<()> {
         if n == 0 { break; }
         if n as u64 > limit { return Err(Error::new("REQUEST_LIMIT")); }
         let response = match serde_json::from_slice(&line) {
-            Ok(req) => port::response(&req),
+            Ok(req) => {
+                let mut response = port::response(&req);
+                if req["op"] == "capabilities" && response["status"] == "OK" {
+                    response["intended_user"] = json!("external-integrator");
+                    response["capability_scope"] = json!("compact-reference-port");
+                    response["not_implemented_scope"] = json!("this compact port only; advanced documents use doc-port");
+                    response["document_port"] = json!("tessembly.document-test-port.v1");
+                }
+                response
+            }
             Err(_) => json!({"protocol":PROTOCOL,"profile":PROFILE,"id":null,"status":"INVALID_REQUEST","complete":false,"error":{"code":"INVALID_JSON"}}),
         };
         serde_json::to_writer(&mut output, &response).map_err(|_|Error::new("WRITE_FAILED"))?;
@@ -43,8 +52,9 @@ fn run() -> Result<u8> {
     if command == "decode" {
         if args.len() != 2 { return Err(Error::new("INVALID_ARGUMENTS")); }
         let doc = tessembly_codec::decode(&read_file(&args[0],1_048_592)?)?;
+        if !doc.optional_extensions.is_empty() { return Err(Error::new("OPAQUE_METADATA_WOULD_BE_LOST")); }
         fs::write(&args[1],tessembly_text::format(&doc.root)?).map_err(|_|Error::new("WRITE_FAILED"))?;
-        eprintln!("Decoded profile: {PROFILE}; optional metadata remains in the binary input.");
+        eprintln!("Decoded profile: {PROFILE}");
         return Ok(0);
     }
     if !matches!(command.as_str(),"lint"|"check"|"format"|"encode") { return Err(Error::new("INVALID_ARGUMENTS")); }

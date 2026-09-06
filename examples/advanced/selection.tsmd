@@ -1,0 +1,12 @@
+tessembly "tessembly.rfc2.precedence.v1";
+config {
+    rule = seven_bag();
+    start = boundary();
+    see = view(next=5, memory=history);
+    hold = slot(initial=empty);
+}
+supply("P7P4");
+// These opaque references are resolved by the external consumer, not Tessembly.
+reference("setup-A", format="ctk3", value="consumer-owned-A", page=0);
+reference("setup-B", format="ctk3", value="consumer-owned-B", page=0);
+select("setup", at=[0,2], choices=["setup-A","setup-B"]);
