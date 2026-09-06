@@ -25,6 +25,7 @@ fn request(argv: &[String], mut input: Value, id: usize) -> Result<Value, String
 struct Runner {
     argv: Vec<String>,
     results: Vec<Value>,
+    aborted: bool,
 }
 impl Runner {
     fn test(
@@ -33,9 +34,16 @@ impl Runner {
         req: Value,
         predicate: impl FnOnce(&Value) -> bool,
     ) -> Option<Value> {
+        if self.aborted {
+            return None;
+        }
         let response = request(&self.argv, req, self.results.len());
+        self.aborted = response.is_err();
         let (ok, detail) = match &response {
-            Ok(v) => (predicate(v), v.clone()),
+            Ok(v) => (
+                predicate(v),
+                json!({"response_preview": tessembly_conformance::response_preview(v)}),
+            ),
             Err(e) => (false, json!({"transport_error":e})),
         };
         eprintln!("{} {name}", if ok { "PASS" } else { "FAIL" });
@@ -184,10 +192,11 @@ fn main() -> ExitCode {
     let mut r = Runner {
         argv,
         results: vec![],
+        aborted: false,
     };
     run(&mut r);
     let passed = r.results.iter().filter(|v| v["passed"] == true).count();
-    let result = json!({"protocol":PROTOCOL,"profile":PROFILE,"total":r.results.len(),"passed":passed,"scope":"external-integrator document contracts, not dataset or GUI certification","results":r.results});
+    let result = json!({"protocol":PROTOCOL,"profile":PROFILE,"total":r.results.len(),"passed":passed,"scope":"external-integrator document contracts, not dataset or GUI certification","results":r.results,"complete":!r.aborted});
     if let Some(path) = report {
         if let Err(e) = fs::write(path, serde_json::to_vec_pretty(&result).unwrap_or_default()) {
             eprintln!("{e}");

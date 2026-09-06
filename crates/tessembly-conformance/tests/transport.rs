@@ -43,3 +43,11 @@ fn output_limit_and_success_do_not_need_a_shell() {
     .unwrap();
     assert_eq!(r, b"bounded\n");
 }
+
+#[test]
+fn diagnostic_retention_is_independent_of_large_host_responses() {
+    let value = serde_json::json!({"detail": "한".repeat(100_000)});
+    let preview = tessembly_conformance::response_preview(&value);
+    assert!(preview.len() < 8300);
+    assert!(preview.ends_with("[truncated]"));
+}

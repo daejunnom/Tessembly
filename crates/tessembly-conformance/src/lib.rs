@@ -110,3 +110,28 @@ pub fn exchange(command: &[String], input: Vec<u8>, timeout: Duration) -> Result
     }
     outcome
 }
+
+/// Bound diagnostic retention independently of the per-response transport limit.
+pub fn response_preview(value: &serde_json::Value) -> String {
+    struct Preview(Vec<u8>);
+    impl Write for Preview {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let n = bytes.len().min(8192usize.saturating_sub(self.0.len()));
+            self.0.extend_from_slice(&bytes[..n]);
+            if n == 0 {
+                return Err(std::io::Error::other("DIAGNOSTIC_LIMIT"));
+            }
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut output = Preview(Vec::new());
+    let truncated = serde_json::to_writer(&mut output, value).is_err();
+    let mut text = String::from_utf8_lossy(&output.0).into_owned();
+    if truncated {
+        text.push_str(" [truncated]");
+    }
+    text
+}

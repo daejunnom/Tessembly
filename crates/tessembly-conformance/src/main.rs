@@ -28,6 +28,7 @@ fn request(command: &[String], mut req: Value, id: usize) -> Result<Value, Strin
 struct Runner {
     command: Vec<String>,
     results: Vec<Value>,
+    aborted: bool,
 }
 impl Runner {
     fn test(
@@ -36,9 +37,16 @@ impl Runner {
         req: Value,
         check: impl FnOnce(&Value) -> bool,
     ) -> Option<Value> {
+        if self.aborted {
+            return None;
+        }
         let response = request(&self.command, req, self.results.len());
+        self.aborted = response.is_err();
         let (pass, detail) = match &response {
-            Ok(v) => (check(v), v.clone()),
+            Ok(v) => (
+                check(v),
+                json!({"response_preview": tessembly_conformance::response_preview(v)}),
+            ),
             Err(e) => (false, json!({"transport_error":e})),
         };
         eprintln!("{} {name}", if pass { "PASS" } else { "FAIL" });
@@ -364,11 +372,12 @@ fn main() {
     let mut r = Runner {
         command: args[split..].to_vec(),
         results: Vec::new(),
+        aborted: false,
     };
     run(&mut r);
     let passed = r.results.iter().filter(|v| v["passed"] == true).count();
     let output = json!({"profile":PROFILE,"protocol":PROTOCOL,"passed":passed,"total":r.results.len(),
-        "scope":"black-box RFC2 reference contracts; not Clearra or GUI certification","results":r.results});
+        "scope":"black-box RFC2 reference contracts; not Clearra or GUI certification","results":r.results,"complete":!r.aborted});
     if let Some(path) = report {
         if let Err(e) = std::fs::write(
             path,
