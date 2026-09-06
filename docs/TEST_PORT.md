@@ -1,9 +1,13 @@
-# Black-box test port v1
+# External-developer compact conformance port v1
 
-The port is a development protocol, not the binary document wire. UTF-8 JSON Lines on stdin
-and stdout; one response per request, diagnostics on stderr. Each request requires id,
-protocol=`tessembly.test-port.v1`, profile=`tessembly.rfc2.precedence.v1`, and op. Unknown
-fields are rejected. The applied profile and request id are echoed. Old profiles are not guessed.
+This is an optional tool for **external integrators**, not a production/internal runtime.
+The repository applies it to its own reference CLI in CI only for regression evidence.
+The separate advanced-document port and runner are specified in [DOCUMENT.md](DOCUMENT.md).
+
+UTF-8 JSON Lines on stdin/stdout: one response per request, diagnostics on stderr. Each
+request requires id, protocol=`tessembly.test-port.v1`,
+profile=`tessembly.rfc2.precedence.v1`, and op. Unknown fields are rejected. The applied
+profile and request id are echoed. Old profiles are not guessed.
 
 | op | Additional fields |
 |---|---|
@@ -21,37 +25,35 @@ fields are rejected. The applied profile and request id are echoed. Old profiles
 ```
 
 Expected count is 176. A complete result includes the exact queue set without duplicate
-strings. Its iteration order is not normative. Exceeding the work/materialization budget
-returns INCOMPLETE with complete=false and no misleading exact count. The enumerator is
-intentionally small (20,000 materialized variants / bounded cells); large patterns must be
-consumed structurally by an external engine. Any U in enumerate_D is UNSUPPORTED, never dropped.
+strings. Iteration order is not normative. Budget exhaustion returns INCOMPLETE with
+complete=false and no misleading exact count. Development enumeration is intentionally
+small; large patterns are consumed structurally by external engines. U in enumerate_D
+is UNSUPPORTED, never silently discarded.
 
-A compile response has status OK for valid syntax; draw_feasibility/execution_feasibility
-separately say UNSAT or NOT_CHECKED. Local diagnostics retain spans and domain. A cycle in one
-union branch does not imply the complete union is UNSAT.
+Compile separates valid syntax from draw/execution feasibility UNSAT or NOT_CHECKED.
+Local diagnostics retain domain and source spans. A cycle in one union branch does not
+make the whole union impossible.
 
-## Advanced hold transport
+## Hold transport
 
 ```json
 {"id":2,"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc2.precedence.v1","op":"hold_step","action":"hold","state":{"active":{"piece":"I","origin":10},"held":{"piece":"T","origin":11},"used_this_turn":false,"queue":[{"piece":"O","origin":12}],"cursor":0,"tail":"END"},"policy":{"allowed":true,"rules":[{"when_active":"T","allowed":false}]}}
 ```
 
-Held may be NONE, EMPTY, or a token object. Current active is I so this rule does not forbid
-this swap. The new active is T, held is I, cursor is unchanged, and used_this_turn is true.
-`action=advance_after_lock` performs only host-confirmed lock/spawn bookkeeping. No actual
-physical placement is checked. Policy restrictions have no compact D/U shortcut.
+Current active I is not denied by this rule. Swapping gives active T, held I, unchanged
+cursor and used_this_turn=true. Slots NONE, EMPTY and a token are distinct.
+advance_after_lock is host-confirmed supply bookkeeping, not a placement legality proof.
+Pending supply is different from an ended queue. There is no compact hold-deny syntax.
 
-## Integration boundary
+## Actual integration
 
-The TCK has no dependency on the production parser, relation evaluator, or other Tessembly
-crates. Expected queue sets come from small independent permutations/projection oracles.
-It executes an argv vector (no shell interpolation), caps response size and runtime, and
-fails on wrong envelopes, duplicate results, bad counts, wrong sets, or incomplete outcomes
-advertised as complete. Only trusted host commands should be run; the runner is not a sandbox.
+TCK imports no product parser/evaluator. It uses independent finite permutation/projection
+oracles, argv execution without shell interpolation, bounded responses and timeouts. Run
+only trusted commands; it is not a sandbox. Capability fields describe this compact port;
+advanced declarations are available through the separate document port, not implicitly here.
 
-A host must wire this port into its real input -> request -> execution -> output path.
-Connecting the demo parser alongside an unrelated application does not validate that app.
-GUI E2E requires an app-specific widget adapter. Hidden-queue noninterference, dataset mapping,
-full placement correctness and see-n policy optimization require separate host fixtures.
-
-Passing these finite tests is evidence for the exercised contracts, not a proof for all inputs.
+Connect the port to the real ingress → request → execution → output path. A spare reference
+parser beside an unrelated application proves nothing about that app. GUI E2E needs an
+app-specific widget adapter. Dataset queries, state mappings, physical legality and see-n
+optimization are external developer responsibilities. Finite test success is evidence for
+the exercised contracts, not universal correctness or certification.
