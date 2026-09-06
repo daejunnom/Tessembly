@@ -12,6 +12,11 @@
 </script>
 <div class="code-block">
   <div class="code-label"><span>{language}</span><button type="button" on:click={copy} aria-label={s.copy}>{message === s.copyOk ? s.copied : s.copy}</button></div>
-  <pre tabindex="0" role="textbox" aria-readonly="true" aria-label={s.code}><code>{text}</code></pre>
+  <div class="code-scroll" role="textbox" tabindex="0" aria-readonly="true" aria-multiline="true" aria-label={s.code}><pre><code>{text}</code></pre></div>
   <span class="sr-only" aria-live="polite">{message}</span>
 </div>
+<style>
+  .code-scroll { overflow:auto; }
+  .code-scroll pre { overflow:visible; min-width:max-content; }
+  .code-scroll:focus-visible { outline:2px solid currentColor; outline-offset:-2px; }
+</style>

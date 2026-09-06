@@ -7,6 +7,7 @@
   import { ui, languageOf, documentPath } from '$lib/i18n.js';
   import '../app.css';
   let query = ''; let menuOpen = false;
+  let locale: 'en' | 'ko' = 'en';
   $: locale = $page.params.lang === 'ko' ? 'ko' : 'en';
   $: s = ui[locale];
   $: chapters = getChapters(locale);
@@ -15,7 +16,7 @@
   function autoLanguage() { return languageOf(navigator.language || Intl.DateTimeFormat().resolvedOptions().locale); }
   function switchLanguage(value: string) {
     const lang = value === 'auto' ? autoLanguage() : languageOf(value);
-    try { if(value==='auto') localStorage.removeItem('tessembly.language'); else localStorage.setItem('tessembly.language',lang); } catch { /* Storage may be disabled. URL selection still works. */ }
+    try { if(value==='auto') localStorage.removeItem('tessembly.language'); else localStorage.setItem('tessembly.language',lang); } catch { /* URL selection works without storage. */ }
     query=''; menuOpen=false;
     void goto(documentPath(base,lang,$page.params.slug??'')+$page.url.search+$page.url.hash);
   }

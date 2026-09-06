@@ -1,0 +1,100 @@
+name: Publish npm package
+on:
+  workflow_dispatch:
+    inputs:
+      authentication:
+        description: First publish uses NPM_TOKEN; later publishes can use configured npm OIDC.
+        type: choice
+        options: [bootstrap-token, oidc]
+        default: bootstrap-token
+        required: true
+      expected_version:
+        description: Must equal the verified package version.
+        type: string
+        default: '0.1.0'
+        required: true
+  push:
+    branches: [main]
+    paths: [.github/workflows/npm-release.yml]
+permissions:
+  contents: read
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/npm.yml
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: tessembly-npm-package
+          path: package
+      - name: Verify exact artifact identity and integrity
+        working-directory: package
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version || '0.1.0' }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          sha256sum --check SHA256SUMS
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const p=JSON.parse(fs.readFileSync('build-info.json','utf8'));
+          if(p.name!=='tessembly'||p.version!==process.env.EXPECTED_VERSION||p.source_commit!==process.env.EXPECTED_SHA||p.file!==`tessembly-${p.version}.tgz`||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(p.version))throw new Error('ARTIFACT_IDENTITY_MISMATCH');
+          const actual='sha512-'+crypto.createHash('sha512').update(fs.readFileSync(p.file)).digest('base64');
+          if(actual!==p.integrity)throw new Error('ARTIFACT_INTEGRITY_MISMATCH');
+          const r=await fetch(`https://registry.npmjs.org/tessembly/${p.version}`);
+          if(r.status===200)throw new Error('VERSION_ALREADY_PUBLISHED: never overwrite or automatically increment');
+          if(r.status!==404)throw new Error(`REGISTRY_CHECK_FAILED:${r.status}`);
+          NODE
+      - name: Require first-publish authentication without exposing it
+        if: inputs.authentication != 'oidc'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo '::error::NPM_AUTH_REQUIRED: register a short-lived npm publishing token as repository Secret NPM_TOKEN, or publish the verified artifact locally after npm login.'
+            echo 'Package verified, but NOT published: npm owner authentication is required. GitHub recovery linkage is not publishing authorization.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - name: Initial authenticated publish
+        if: inputs.authentication != 'oidc'
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ inputs.expected_version || '0.1.0' }}
+        run: npm publish "tessembly-${VERSION}.tgz" --access public --ignore-scripts --provenance
+      - name: Trusted publish after npm configuration
+        if: inputs.authentication == 'oidc'
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ''
+          VERSION: ${{ inputs.expected_version }}
+        run: npm publish "tessembly-${VERSION}.tgz" --access public --ignore-scripts --provenance
+      - name: Confirm registry version and integrity
+        working-directory: package
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p=JSON.parse(fs.readFileSync('build-info.json','utf8'));
+          for(let n=0;n<12;n++){
+            const r=await fetch(`https://registry.npmjs.org/tessembly/${p.version}`);
+            if(r.ok){const m=await r.json();if(m.name===p.name&&m.version===p.version&&m.dist?.integrity===p.integrity){console.log(`PUBLISHED_AND_VERIFIED ${p.name}@${p.version}`);process.exit(0);}}
+            await new Promise(resolve=>setTimeout(resolve,3000));
+          }
+          throw new Error('PUBLISH_UNVERIFIED');
+          NODE

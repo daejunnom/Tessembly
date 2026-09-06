@@ -2,9 +2,7 @@ name: Documentation Pages
 on:
   push:
     branches: [main]
-    paths:
-      - apps/docs/**
-      - .github/workflows/pages.yml
+    paths: ['apps/docs/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,44 +14,45 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: apps/docs/package-lock.json
-      - name: Install locked documentation dependencies
+      - name: Install and audit the locked documentation dependencies
         working-directory: apps/docs
-        run: npm ci
-      - name: Record deployed source identity
+        run: |
+          npm ci
+          npm audit --audit-level=low
+      - name: Record deployed source and languages
         working-directory: apps/docs
         env:
           SOURCE_SHA: ${{ github.sha }}
-        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA, site:"Tessembly", semantic_profile:"tessembly.rfc2.precedence.v1"}) + "\n");'
-      - name: Check and prerender all chapters
+        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA,site:"Tessembly",semantic_profile:"tessembly.rfc2.precedence.v1",languages:["en","ko"]})+"\n");'
+      - name: Verify complete translations and zero Svelte warnings
         working-directory: apps/docs
         run: |
+          npm run test:content
           npm run check
           npm run build
-      - name: Install browser for documentation E2E
+      - name: Browser prerequisites
         working-directory: apps/docs
         run: npx playwright install --with-deps chromium
-      - name: Desktop and mobile browser contracts
+      - name: Desktop and mobile language contracts
         working-directory: apps/docs
         run: npm run test:e2e
-      - name: Keep browser evidence
+      - uses: actions/upload-artifact@v6
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: documentation-browser-evidence
           path: |
             apps/docs/playwright-report
             apps/docs/test-results
           retention-days: 7
-      - name: Upload verified Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: apps/docs/build
   deploy:
@@ -67,14 +66,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Deploy verified artifact
+      - uses: actions/configure-pages@v6
+      - uses: actions/deploy-pages@v5
         id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify the public site and deployed source
+      - name: Verify public translations and exact deployed source
         env:
           SITE_URL: ${{ steps.deployment.outputs.page_url }}
           EXPECTED_SHA: ${{ github.sha }}
@@ -82,18 +77,17 @@ jobs:
           set -euo pipefail
           test "$SITE_URL" = 'https://daejunnom.github.io/Tessembly/'
           ready=0
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}build-info.json" -o /tmp/tessembly-build-info.json &&
-               jq --exit-status --arg sha "$EXPECTED_SHA" '.source_commit == $sha and .semantic_profile == "tessembly.rfc2.precedence.v1"' /tmp/tessembly-build-info.json; then
-              ready=1
-              break
-            fi
+          for attempt in {1..15}; do
+            if curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}build-info.json" -o /tmp/build-info.json && jq -e --arg sha "$EXPECTED_SHA" '.source_commit==$sha and .languages==["en","ko"]' /tmp/build-info.json; then ready=1; break; fi
             sleep 3
           done
           test "$ready" = 1
-          for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ scope/; do
-            curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${path}" -o /tmp/tessembly-page.html
-            grep --quiet 'Tessembly' /tmp/tessembly-page.html
-            echo "PUBLIC_OK ${SITE_URL}${path}"
+          for lang in en ko; do
+            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ scope/; do
+              curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${lang}/${path}" -o /tmp/page.html
+              grep -q "lang=\"${lang}\"" /tmp/page.html
+              grep -q 'Tessembly' /tmp/page.html
+              echo "PUBLIC_OK ${lang}/${path}"
+            done
           done
-          echo "Verified public documentation source: $EXPECTED_SHA"
+          echo "Verified bilingual source: $EXPECTED_SHA"
