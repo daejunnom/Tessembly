@@ -194,7 +194,15 @@ fn handle(req: &Value) -> Result<Value> {
         _ => Err(Error::new("UNSUPPORTED_OPERATION")),
     }
 }
-pub fn hex(bytes: &[u8]) -> String { bytes.iter().map(|b|format!("{b:02x}")).collect() }
+pub fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::new();
+    for byte in bytes {
+        out.push(DIGITS[usize::from(byte >> 4)] as char);
+        out.push(DIGITS[usize::from(byte & 15)] as char);
+    }
+    out
+}
 pub fn unhex(s: &str) -> Result<Vec<u8>> {
     if s.len() > 2_100_000 || s.len() % 2 != 0 || !s.is_ascii() { return Err(Error::new("INVALID_HEX")); }
     (0..s.len()).step_by(2).map(|i|u8::from_str_radix(&s[i..i+2],16).map_err(|_|Error::new("INVALID_HEX"))).collect()
