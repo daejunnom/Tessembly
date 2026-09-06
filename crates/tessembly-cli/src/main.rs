@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+mod advanced;
 mod expand;
 mod port;
 use std::{env, fs, io::{self, BufRead, Read, Write}, process::ExitCode};
@@ -34,6 +35,7 @@ fn run() -> Result<u8> {
     let mut args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() || matches!(args[0].as_str(), "help" | "--help" | "-h") { println!("{HELP}"); return Ok(0); }
     let command = args.remove(0);
+    if command.starts_with("doc-") { return advanced::run(&command,args); }
     if command == "test-port" {
         if !args.is_empty() { return Err(Error::new("INVALID_ARGUMENTS")); }
         test_port()?; return Ok(0);
