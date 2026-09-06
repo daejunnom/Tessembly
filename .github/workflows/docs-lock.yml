@@ -1,0 +1,71 @@
+name: Documentation dependency lock
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/docs-lock.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: documentation-lock
+  cancel-in-progress: false
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Resolve and pin documentation-only dependencies
+        working-directory: apps/docs
+        run: |
+          npm install --ignore-scripts
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          for (const name of Object.keys(p.devDependencies)) {
+            const version = lock.packages['node_modules/' + name]?.version;
+            if (!version) throw new Error('Missing resolved dependency: ' + name);
+            p.devDependencies[name] = version;
+          }
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts
+      - name: Commit only the resolved documentation manifests
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/docs/package.json apps/docs/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'build(docs): pin resolved SvelteKit documentation dependencies'
+            git push origin HEAD:main
+          fi
+      - name: Type-check and build static documentation
+        working-directory: apps/docs
+        run: |
+          npm run check
+          npm run build
+      - name: Browser prerequisites
+        working-directory: apps/docs
+        run: npx playwright install --with-deps chromium
+      - name: Browser contracts
+        working-directory: apps/docs
+        run: npm run test:e2e
+      - name: Keep build and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-bootstrap-evidence
+          path: |
+            apps/docs/build
+            apps/docs/playwright-report
+            apps/docs/test-results
+          retention-days: 7
