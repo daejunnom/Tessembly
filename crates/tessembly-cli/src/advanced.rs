@@ -57,24 +57,34 @@ fn handle(req: &Value) -> Result<Value> {
             let result = match str_field(req,"action")? {
                 "hold" => s.swap(&p), "advance_after_lock" => s.advance_after_lock(), _ => return Err(Error::new("UNSUPPORTED_OPERATION")),
             };
+            let reason = result.err().map(|e|e.code);
+            let pending = reason == Some("NEEDS_SUPPLY");
             let held = match s.held {
                 tessembly_core::hold::Slot::None => json!("NONE"), tessembly_core::hold::Slot::Empty => json!("EMPTY"),
                 tessembly_core::hold::Slot::Occupied(t) => json!({"piece":t.kind.to_string(),"origin":t.origin}),
             };
-            Ok(json!({"status":if result.is_ok() {"OK"} else {"REJECTED_ACTION"},"complete":true,
-                "reason":result.err().map(|e|e.code),"unchanged":s == before,
+            Ok(json!({"status":if pending {"NOT_CHECKED"} else if reason.is_none() {"OK"} else {"REJECTED_ACTION"},"complete":!pending,
+                "reason":reason,"unchanged":s == before,
                 "active":s.active.kind.to_string(),"active_origin":s.active.origin,"held":held,
                 "cursor":s.cursor,"used_this_turn":s.used_this_turn,"placement_checked":false}))
         }
         _ => Err(Error::new("UNSUPPORTED_OPERATION")),
     }
 }
+fn error_status(code: &str) -> &'static str {
+    if code == "UNSUPPORTED_STATE" { "UNSUPPORTED_STATE" }
+    else if code.starts_with("UNSUPPORTED") || code.ends_with("REQUIRES_HOST") { "UNSUPPORTED" }
+    else if code == "CONFIG_CONFLICT" { "CONFIG_CONFLICT" }
+    else if matches!(code,"CONFIG_REQUIRED"|"STATE_REQUIRED") { "NOT_CHECKED" }
+    else if code.ends_with("LIMIT") { "INCOMPLETE" }
+    else if matches!(code,"INVALID_REQUEST"|"UNKNOWN_FIELD") { "INVALID_REQUEST" }
+    else { "INVALID_DOCUMENT" }
+}
 pub fn response(req: &Value) -> Value {
     let mut out = match handle(req) {
         Ok(v) => v,
-        Err(e) => json!({"status":if e.code.starts_with("UNSUPPORTED") || e.code.ends_with("REQUIRES_HOST") {"UNSUPPORTED"}
-            else if e.code == "CONFIG_CONFLICT" {"CONFIG_CONFLICT"} else {"INVALID_DOCUMENT"},
-            "complete":false,"error":{"code":e.code,"start":e.span.start,"end":e.span.end}}),
+        Err(e) => json!({"status":error_status(e.code),"complete":false,
+            "error":{"code":e.code,"start":e.span.start,"end":e.span.end}}),
     };
     out["id"] = req.get("id").cloned().unwrap_or(Value::Null); out["protocol"] = json!(PROTOCOL); out["profile"] = json!(PROFILE); out
 }
