@@ -28,7 +28,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Pin toolchain
@@ -51,7 +51,7 @@ jobs:
           cargo +1.85.0 run --locked -p tessembly-cli -- doc-check --deny-unsat examples/advanced/*.tsmd
       - name: Keep conformance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: conformance-${{ runner.os }}
           path: |

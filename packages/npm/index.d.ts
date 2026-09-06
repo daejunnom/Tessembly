@@ -1,4 +1,6 @@
-export type Language = 'en' | 'ko';
+import type { Language } from './locale.js';
+export { TessemblyError, resolveLanguage, detectLanguage, errorMessage } from './locale.js';
+export type { Language } from './locale.js';
 export const PROFILE: 'tessembly.rfc2.precedence.v1';
 export const DOCUMENT_SCHEMA: 'tessembly.document.v1';
 export interface Options { language?: string; wasm?: BufferSource | WebAssembly.Module; wasmUrl?: string | URL; }
@@ -20,8 +22,4 @@ export interface Tessembly {
   decodeDocument(bytes: Uint8Array | ArrayBuffer): string;
   dispose(): void;
 }
-export class TessemblyError extends Error { readonly code: string; readonly start: number; readonly end: number; readonly language: Language; }
 export function createTessembly(options?: Options): Promise<Tessembly>;
-export function resolveLanguage(value?: string): Language;
-export function detectLanguage(options?: {language?: string; browserLanguage?: string; systemLanguage?: string; env?: Record<string,string|undefined>}): Language;
-export function errorMessage(code: string, language?: string): string;

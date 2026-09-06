@@ -28,7 +28,7 @@ jobs:
           cp bindings/wasm/target/wasm32-unknown-unknown/release/tessembly_wasm.wasm packages/npm/tessembly.wasm
           cargo +1.85.0 metadata --locked --offline --manifest-path bindings/wasm/Cargo.toml --format-version 1 > /tmp/wasm-deps.json
           node -e 'const m=require("/tmp/wasm-deps.json"); if(m.packages.some(p=>p.source!==null)) process.exit(1); console.log("External Rust dependencies: 0")'
-      - name: Check Node API and package contents
+      - name: Check Node 24 API and package contents
         working-directory: packages/npm
         run: |
           npm test
@@ -38,12 +38,24 @@ jobs:
           sha256sum *.tgz > SHA256SUMS
       - name: Exercise installed tarball without lifecycle scripts
         run: |
+          PACKAGE_FILE=$(node -e 'console.log(JSON.parse(require("node:fs").readFileSync("packages/npm/build-info.json","utf8")).file)')
           mkdir /tmp/tessembly-consumer
           cd /tmp/tessembly-consumer
           npm init -y > /dev/null
-          npm install --ignore-scripts "$GITHUB_WORKSPACE/packages/npm/tessembly-0.1.0.tgz"
+          npm install --ignore-scripts "$GITHUB_WORKSPACE/packages/npm/$PACKAGE_FILE"
           npm ls --all
           node --input-type=module -e 'import {createTessembly} from "tessembly";const t=await createTessembly();if(t.checkPattern("P7:D(I<T<I)").draw!=="UNSAT")process.exit(1);console.log("INSTALLED_TARBALL_OK");t.dispose();'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Check supported Node 22 API
+        working-directory: packages/npm
+        run: npm test
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
       - name: Install isolated browser-test tooling
         working-directory: apps/docs
         run: |

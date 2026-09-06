@@ -13,9 +13,6 @@ on:
         type: string
         default: '0.1.0'
         required: true
-  push:
-    branches: [main]
-    paths: [.github/workflows/npm-release.yml]
 permissions:
   contents: read
 concurrency:
@@ -46,7 +43,7 @@ jobs:
       - name: Verify exact artifact identity and integrity
         working-directory: package
         env:
-          EXPECTED_VERSION: ${{ inputs.expected_version || '0.1.0' }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           sha256sum --check SHA256SUMS
@@ -76,7 +73,7 @@ jobs:
         working-directory: package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ inputs.expected_version || '0.1.0' }}
+          VERSION: ${{ inputs.expected_version }}
         run: npm publish "tessembly-${VERSION}.tgz" --access public --ignore-scripts --provenance
       - name: Trusted publish after npm configuration
         if: inputs.authentication == 'oidc'
