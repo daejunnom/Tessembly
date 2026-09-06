@@ -23,15 +23,15 @@ jobs:
       - name: Pin toolchain
         run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
       - name: Compile and test
-        run: cargo +1.85.0 test --workspace --all-targets
+        run: cargo +1.85.0 test --locked --workspace --all-targets
       - name: Clippy
-        run: cargo +1.85.0 clippy --workspace --all-targets -- -D warnings
+        run: cargo +1.85.0 clippy --locked --workspace --all-targets -- -D warnings
       - name: Build host and independent TCK
-        run: cargo +1.85.0 build --workspace
+        run: cargo +1.85.0 build --locked --workspace
       - name: Black-box contracts
-        run: cargo +1.85.0 run -p tessembly-conformance -- --report conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} test-port
+        run: cargo +1.85.0 run --locked -p tessembly-conformance -- --report conformance-report.json -- target/debug/tessembly${{ runner.os == 'Windows' && '.exe' || '' }} test-port
       - name: Static examples
-        run: cargo +1.85.0 run -p tessembly-cli -- lint --profile rfc2 --deny-unsat examples/*.tsm
+        run: cargo +1.85.0 run --locked -p tessembly-cli -- lint --profile rfc2 --deny-unsat examples/*.tsm
       - name: Dependency and result evidence
         if: always()
         run: |
