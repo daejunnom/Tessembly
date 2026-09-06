@@ -74,3 +74,26 @@ jobs:
       - name: Deploy verified artifact
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the public site and deployed source
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$SITE_URL" = 'https://daejunnom.github.io/Tessembly/'
+          ready=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}build-info.json" -o /tmp/tessembly-build-info.json &&
+               jq --exit-status --arg sha "$EXPECTED_SHA" '.source_commit == $sha and .semantic_profile == "tessembly.rfc2.precedence.v1"' /tmp/tessembly-build-info.json; then
+              ready=1
+              break
+            fi
+            sleep 3
+          done
+          test "$ready" = 1
+          for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ scope/; do
+            curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${path}" -o /tmp/tessembly-page.html
+            grep --quiet 'Tessembly' /tmp/tessembly-page.html
+            echo "PUBLIC_OK ${SITE_URL}${path}"
+          done
+          echo "Verified public documentation source: $EXPECTED_SHA"
