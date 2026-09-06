@@ -3,7 +3,7 @@ test('home and deep links render without console errors', async ({ page }, testI
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/Tessembly/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('미노 공급을');
-  await page.getByRole('link', { name: '시작하기 →', exact: true }).click();
+  await page.locator('main').getByRole('link', { name: '시작하기', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('시작하기');
   for (const [slug, title] of [['compact','단축 문법'],['advanced','고급 선언 문법'],['state','가방·관측·홀드'],['wire','바이너리와 버전'],['integrators','외부 개발자 가이드'],['scope','프로젝트의 경계']]) {
     const response = await page.goto('/Tessembly/' + slug + '/');
