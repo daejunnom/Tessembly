@@ -14,13 +14,27 @@ pub const MAX_PREDICATES: usize = 4096;
 pub const MAX_DRAWS: usize = 256;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Span { pub start: usize, pub end: usize }
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Error { pub code: &'static str, pub span: Span }
+pub struct Error {
+    pub code: &'static str,
+    pub span: Span,
+}
 impl Error {
-    pub fn new(code: &'static str) -> Self { Self { code, span: Span::default() } }
+    pub fn new(code: &'static str) -> Self {
+        Self {
+            code,
+            span: Span::default(),
+        }
+    }
     pub fn at(code: &'static str, start: usize, end: usize) -> Self {
-        Self { code, span: Span { start, end } }
+        Self {
+            code,
+            span: Span { start, end },
+        }
     }
 }
 impl std::fmt::Display for Error {
