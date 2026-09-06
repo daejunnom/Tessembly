@@ -30,4 +30,6 @@ CLI: `tessembly help`, `tessembly check input.tsm`, `tessembly --lang ko doc-che
 
 The npm package has no dependency categories and no install-time scripts. Build sources and independent tests live in the GitHub repository; compiled Wasm is included in the tarball. Node.js >=22 or a browser supporting WebAssembly and TextEncoder is required.
 
-License status: UNLICENSED; the owner has not selected an open-source license. Public distribution does not imply an open-source license grant.
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 daejunnom. The grant covers project sources and documentation; the tarball includes the license text. Third-party components retain their own licenses.

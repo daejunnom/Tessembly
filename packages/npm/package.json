@@ -1,9 +1,9 @@
 {
   "name": "tessembly",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-dependency Tetris supply formats, constraints and binary interchange powered by Rust/WebAssembly.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": { "node": ">=22" },
   "repository": { "type": "git", "url": "git+https://github.com/daejunnom/Tessembly.git", "directory": "packages/npm" },
   "homepage": "https://daejunnom.github.io/Tessembly/",
@@ -16,7 +16,7 @@
   },
   "types": "./index.d.ts",
   "bin": { "tessembly": "./bin/tessembly.js" },
-  "files": ["*.js", "*.d.ts", "tessembly.wasm", "bin", "README.md", "README.ko.md"],
+  "files": ["*.js", "*.d.ts", "tessembly.wasm", "bin", "README.md", "README.ko.md", "LICENSE"],
   "sideEffects": false,
   "scripts": { "test": "node --test tests/*.test.mjs", "check:package": "node scripts/check-package.mjs" },
   "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" }

@@ -1,17 +1,18 @@
 name: Publish npm package
+run-name: npm ${{ inputs.expected_version }} / ${{ inputs.mode }} / OIDC
 on:
   workflow_dispatch:
     inputs:
-      authentication:
-        description: First publish uses NPM_TOKEN; later publishes can use configured npm OIDC.
+      mode:
+        description: verify-only does NOT test npm authorization. publish uploads the verified MIT artifact with OIDC.
         type: choice
-        options: [bootstrap-token, oidc]
-        default: bootstrap-token
+        options: [verify-only, publish]
+        default: verify-only
         required: true
       expected_version:
-        description: Must equal the verified package version.
+        description: Must equal the intentionally committed npm package version. Never overwrites an existing version.
         type: string
-        default: '0.1.0'
+        default: '0.1.1'
         required: true
 permissions:
   contents: read
@@ -23,75 +24,71 @@ jobs:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/npm.yml
   publish:
+    if: github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     environment: npm
     permissions:
       contents: read
       id-token: write
+    env:
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      EXPECTED_SHA: ${{ github.sha }}
+      NODE_AUTH_TOKEN: ''
+      NPM_TOKEN: ''
+      NPM_ID_TOKEN: ''
+      NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/tessembly-oidc.npmrc
+      NPM_CONFIG_GLOBALCONFIG: ${{ runner.temp }}/tessembly-oidc-global.npmrc
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-          registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - uses: actions/download-artifact@v8
         with:
           name: tessembly-npm-package
-          path: package
-      - name: Verify exact artifact identity and integrity
-        working-directory: package
-        env:
-          EXPECTED_VERSION: ${{ inputs.expected_version }}
-          EXPECTED_SHA: ${{ github.sha }}
+          path: .release-package
+      - name: Verify exact MIT artifact identity and integrity
         run: |
-          sha256sum --check SHA256SUMS
+          (cd .release-package && sha256sum --check SHA256SUMS)
+          node scripts/release-contract.mjs check-registry .release-package
+      - name: Prepare isolated token-free npm configuration
+        env:
+          RELEASE_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_MODE" in verify-only|publish) ;; *) echo 'Invalid release mode'; exit 1;; esac
+          printf 'registry=https://registry.npmjs.org/\n' > "$NPM_CONFIG_USERCONFIG"
+          : > "$NPM_CONFIG_GLOBALCONFIG"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
           node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import crypto from 'node:crypto';
-          const p=JSON.parse(fs.readFileSync('build-info.json','utf8'));
-          if(p.name!=='tessembly'||p.version!==process.env.EXPECTED_VERSION||p.source_commit!==process.env.EXPECTED_SHA||p.file!==`tessembly-${p.version}.tgz`||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(p.version))throw new Error('ARTIFACT_IDENTITY_MISMATCH');
-          const actual='sha512-'+crypto.createHash('sha512').update(fs.readFileSync(p.file)).digest('base64');
-          if(actual!==p.integrity)throw new Error('ARTIFACT_INTEGRITY_MISMATCH');
-          const r=await fetch(`https://registry.npmjs.org/tessembly/${p.version}`);
-          if(r.status===200)throw new Error('VERSION_ALREADY_PUBLISHED: never overwrite or automatically increment');
-          if(r.status!==404)throw new Error(`REGISTRY_CHECK_FAILED:${r.status}`);
+          import {execFileSync} from 'node:child_process';
+          const node = process.versions.node.split('.').map(Number);
+          const npmText = execFileSync('npm', ['--version'], {encoding:'utf8'}).trim();
+          const npm = npmText.split('.').map(Number);
+          const atLeast = (v, min) => v[0] > min[0] || v[0] === min[0] && (v[1] > min[1] || v[1] === min[1] && v[2] >= min[2]);
+          if (!atLeast(node,[22,14,0]) || !atLeast(npm,[11,5,1])) throw new Error('NPM_OIDC_TOOLCHAIN_UNSUPPORTED');
+          console.log(`Node ${process.versions.node}; npm ${npmText}; GitHub OIDC endpoint available (npm permission not yet verified).`);
           NODE
-      - name: Require first-publish authentication without exposing it
-        if: inputs.authentication != 'oidc'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Explain verification-only result
+        if: inputs.mode == 'verify-only'
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo '::error::NPM_AUTH_REQUIRED: register a short-lived npm publishing token as repository Secret NPM_TOKEN, or publish the verified artifact locally after npm login.'
-            echo 'Package verified, but NOT published: npm owner authentication is required. GitHub recovery linkage is not publishing authorization.' >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-      - name: Initial authenticated publish
-        if: inputs.authentication != 'oidc'
-        working-directory: package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ inputs.expected_version }}
-        run: npm publish "tessembly-${VERSION}.tgz" --access public --ignore-scripts --provenance
-      - name: Trusted publish after npm configuration
-        if: inputs.authentication == 'oidc'
-        working-directory: package
-        env:
-          NODE_AUTH_TOKEN: ''
-          VERSION: ${{ inputs.expected_version }}
-        run: npm publish "tessembly-${VERSION}.tgz" --access public --ignore-scripts --provenance
-      - name: Confirm registry version and integrity
-        working-directory: package
+          echo 'MIT artifact verified. Nothing was published. npm Trusted Publisher authorization has NOT been tested.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the verified MIT package using OIDC only
+        if: inputs.mode == 'publish'
+        working-directory: .release-package
         run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const p=JSON.parse(fs.readFileSync('build-info.json','utf8'));
-          for(let n=0;n<12;n++){
-            const r=await fetch(`https://registry.npmjs.org/tessembly/${p.version}`);
-            if(r.ok){const m=await r.json();if(m.name===p.name&&m.version===p.version&&m.dist?.integrity===p.integrity){console.log(`PUBLISHED_AND_VERIFIED ${p.name}@${p.version}`);process.exit(0);}}
-            await new Promise(resolve=>setTimeout(resolve,3000));
-          }
-          throw new Error('PUBLISH_UNVERIFIED');
-          NODE
+          set -euo pipefail
+          unset NODE_AUTH_TOKEN NPM_TOKEN NPM_ID_TOKEN NPM_CONFIG_TOKEN NPM_CONFIG__AUTH npm_config__auth
+          npm publish "./tessembly-${EXPECTED_VERSION}.tgz" --registry=https://registry.npmjs.org/ --access public --ignore-scripts --provenance
+      - name: Confirm registry version, MIT license and integrity
+        if: inputs.mode == 'publish'
+        run: |
+          node scripts/release-contract.mjs confirm .release-package
+          echo "Published and verified tessembly@${EXPECTED_VERSION}: MIT, expected SHA-512 and zero npm dependencies. OIDC-only workflow; no bootstrap token was loaded." >> "$GITHUB_STEP_SUMMARY"

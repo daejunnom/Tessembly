@@ -2,7 +2,7 @@ name: npm package contracts
 on:
   push:
     branches: [main]
-    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml']
+    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'Cargo.toml', 'LICENSE', 'scripts/release-contract*', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml', '.github/workflows/npm-release.yml']
   workflow_dispatch:
   workflow_call:
 permissions:
@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Test release identity, license and failure contracts
+        run: node --test scripts/release-contract.test.mjs
       - name: Build Rust-only Wasm with no registry dependencies
         run: |
           rustup toolchain install 1.85.0 --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
@@ -27,15 +29,28 @@ jobs:
           cargo +1.85.0 build --locked --offline --manifest-path bindings/wasm/Cargo.toml --target wasm32-unknown-unknown --release
           cp bindings/wasm/target/wasm32-unknown-unknown/release/tessembly_wasm.wasm packages/npm/tessembly.wasm
           cargo +1.85.0 metadata --locked --offline --manifest-path bindings/wasm/Cargo.toml --format-version 1 > /tmp/wasm-deps.json
-          node -e 'const m=require("/tmp/wasm-deps.json"); if(m.packages.some(p=>p.source!==null)) process.exit(1); console.log("External Rust dependencies: 0")'
+          node -e 'const m=require("/tmp/wasm-deps.json"); if(m.packages.some(p=>p.source!==null || p.license!=="MIT")) process.exit(1); console.log("External Rust dependencies: 0; local crate licenses: MIT")'
       - name: Check Node 24 API and package contents
         working-directory: packages/npm
         run: |
           npm test
           npm run check:package
           npm pack --ignore-scripts
-          node --input-type=module -e 'import fs from "node:fs"; import crypto from "node:crypto";const p=JSON.parse(fs.readFileSync("package.json"));const file=`${p.name}-${p.version}.tgz`;const integrity="sha512-"+crypto.createHash("sha512").update(fs.readFileSync(file)).digest("base64");fs.writeFileSync("build-info.json",JSON.stringify({name:p.name,version:p.version,source_commit:process.env.GITHUB_SHA,file,integrity})+"\n");'
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const p = JSON.parse(fs.readFileSync('package.json'));
+          const file = `${p.name}-${p.version}.tgz`;
+          const integrity = 'sha512-' + crypto.createHash('sha512').update(fs.readFileSync(file)).digest('base64');
+          const license_sha256 = crypto.createHash('sha256').update(fs.readFileSync('LICENSE')).digest('hex');
+          fs.writeFileSync('build-info.json', JSON.stringify({ name: p.name, version: p.version, source_commit: process.env.GITHUB_SHA, file, integrity, license: p.license, license_sha256 }) + '\n');
+          NODE
           sha256sum *.tgz > SHA256SUMS
+      - name: Inspect the actual tarball without executing package code
+        run: |
+          mkdir /tmp/tessembly-artifact-check
+          cp packages/npm/*.tgz packages/npm/build-info.json packages/npm/SHA256SUMS /tmp/tessembly-artifact-check/
+          EXPECTED_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync("packages/npm/package.json","utf8")).version') EXPECTED_SHA="$GITHUB_SHA" node scripts/release-contract.mjs inspect /tmp/tessembly-artifact-check
       - name: Exercise installed tarball without lifecycle scripts
         run: |
           PACKAGE_FILE=$(node -e 'console.log(JSON.parse(require("node:fs").readFileSync("packages/npm/build-info.json","utf8")).file)')

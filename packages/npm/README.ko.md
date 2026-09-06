@@ -25,4 +25,6 @@ CLI: tessembly help, tessembly check input.tsm, tessembly --lang ko doc-check in
 
 외부 개발자용 적합성 도구는 제품 런타임이 아닙니다. 데이터셋·Clearra 등의 연결과 PC 탐색·리플레이는 소비자가 구현합니다. 패키지의 WebAssembly는 배포 전에 Rust 원본에서 빌드되며 설치 후 재컴파일하지 않습니다.
 
-라이선스 상태는 UNLICENSED입니다. 소유자가 아직 오픈소스 라이선스를 선택하지 않았으며 공개 배포가 사용 허가를 새로 부여하지는 않습니다.
+## 라이선스
+
+[MIT](LICENSE). Copyright (c) 2026 daejunnom. 소스와 문서에 적용되며 배포 압축 파일에도 LICENSE 본문이 포함됩니다. 제3자 구성요소는 각자의 라이선스를 유지합니다.
