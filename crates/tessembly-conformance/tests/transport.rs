@@ -24,7 +24,12 @@ fn transport_deadline_covers_backpressure_and_inherited_stdout() {
     let script="require('node:child_process').spawn(process.execPath,['-e','setTimeout(()=>{},2000)'],{stdio:['ignore',process.stdout,'ignore']}).unref();process.stdin.resume();";
     let start = Instant::now();
     let r = exchange(&node(script), vec![], Duration::from_millis(500));
-    assert!(r.unwrap_err().contains("HOST_TIMEOUT"));
+    // Windows may close a forwarded pipe on parent exit. EOF is safe; on Unix
+    // the inherited descriptor stays open and must hit our bounded deadline.
+    match r {
+        Ok(bytes) => assert!(cfg!(windows) && bytes.is_empty()),
+        Err(error) => assert!(error.contains("HOST_TIMEOUT")),
+    }
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 #[test]

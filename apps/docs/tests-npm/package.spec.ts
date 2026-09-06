@@ -11,7 +11,7 @@ for(const [locale,expected] of [['ko-KR','ko'],['en-US','en'],['ja-JP','en']] as
       if(u.origin!=='https://tessembly.local')throw new Error('Unexpected external request');
       if(u.pathname==='/'){await route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="en"><title>Package contract</title><body>Wasm consumer</body></html>'});return;}
       const name=u.pathname.slice(1);
-      if(!['browser.js','runtime.js','locale.js','tessembly.wasm'].includes(name))throw new Error('Unexpected package asset');
+      if(!['browser.js','runtime.js','locale.js','limits.js','tessembly.wasm'].includes(name))throw new Error('Unexpected package asset');
       await route.fulfill({contentType:name.endsWith('.wasm')?'application/wasm':'text/javascript',body:await readFile(path.join(root,name))});
     });
     await page.goto('https://tessembly.local/');
