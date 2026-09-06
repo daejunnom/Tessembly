@@ -11,6 +11,7 @@ tessembly-core.workspace = true
 tessembly-text.workspace = true
 tessembly-relations.workspace = true
 tessembly-codec.workspace = true
+tessembly-document = { path = "../tessembly-document" }
 serde_json.workspace = true
 
 [[bin]]
