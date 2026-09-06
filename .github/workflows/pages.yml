@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
           cache: npm
@@ -25,7 +25,7 @@ jobs:
       - name: Install and audit the locked documentation dependencies
         working-directory: apps/docs
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm audit --audit-level=low
       - name: Record deployed source and languages
         working-directory: apps/docs
@@ -44,7 +44,7 @@ jobs:
       - name: Desktop and mobile language contracts
         working-directory: apps/docs
         run: npm run test:e2e
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: documentation-browser-evidence
@@ -52,7 +52,8 @@ jobs:
             apps/docs/playwright-report
             apps/docs/test-results
           retention-days: 7
-      - uses: actions/upload-pages-artifact@v5
+          if-no-files-found: ignore
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           path: apps/docs/build
   deploy:
@@ -66,8 +67,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/configure-pages@v6
-      - uses: actions/deploy-pages@v5
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
         id: deployment
       - name: Verify public translations and exact deployed source
         env:
@@ -83,7 +84,7 @@ jobs:
           done
           test "$ready" = 1
           for lang in en ko; do
-            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ scope/; do
+            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ scope/; do
               curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${lang}/${path}" -o /tmp/page.html
               grep -q "lang=\"${lang}\"" /tmp/page.html
               grep -q 'Tessembly' /tmp/page.html

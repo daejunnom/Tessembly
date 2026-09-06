@@ -2,18 +2,18 @@
 
 A compact, extensible format for Tetris piece queues, patterns, and constraints.
 
-**MIT-licensed Rust reference implementation of `tessembly.rfc2.precedence.v1`**, with compact and advanced declarations, structural binary interchange, native tools, and a **zero-dependency npm/Wasm library**. This is a format/tooling project, not a PC solver, game engine, replay engine, or language-model application.
+**MIT-licensed Rust reference implementation of `tessembly.rfc2.precedence.v1`**, with compact and advanced declarations, structural binary interchange, native tools, and a **zero-dependency npm/WebAssembly library**. This is a format/tooling project, not a PC solver, game engine, replay engine or language-model application.
 
 ## Documentation / 문서
 
 **[Automatic language](https://daejunnom.github.io/Tessembly/)** · **[English](https://daejunnom.github.io/Tessembly/en/)** · **[한국어](https://daejunnom.github.io/Tessembly/ko/)**
 
-The static SvelteKit site in `apps/docs` includes English and Korean translations of every chapter and table. Neutral URLs select Korean only when the browser's primary language is Korean; every other primary language selects English. Explicit language URLs and manual choices take priority. Old chapter URLs and anchors remain usable. No translation service or runtime i18n library is required. With JavaScript disabled, neutral pages are readable in English with links to both languages.
+Every chapter and table is authored in English and Korean. Neutral URLs select Korean only for a Korean browser primary language; all other languages select English. Explicit language URLs and manual choices take priority, preserving the chapter and anchor. With JavaScript disabled, neutral pages show readable English and both language links. No translation service or runtime i18n dependency is used.
 
-- [MIT license](LICENSE)
-- [OIDC publishing and owner setup / OIDC 배포 설정](docs/PUBLISHING.md)
+- [Platform contracts](docs/PLATFORMS.md) · [Security policy](SECURITY.md) · [Scoped security review](docs/SECURITY_REVIEW.md)
+- [OIDC publication and recovery](docs/PUBLISHING.md)
 - [npm API](packages/npm/README.md) · [npm 한국어](packages/npm/README.ko.md)
-- [Native English help](docs/HELP.en.md) · [네이티브 한국어 도움말](docs/HELP.ko.md)
+- [English native help](docs/HELP.en.md) · [한국어 도움말](docs/HELP.ko.md)
 - [Advanced documents](docs/DOCUMENT.md) · [Compact semantics](docs/SEMANTICS.md)
 - [Pattern wire](docs/WIRE.md) · [External test port](docs/TEST_PORT.md)
 
@@ -31,32 +31,32 @@ P4:D(I>T,T)
 P7:D(I>T)U(T>I)
 ```
 
-Comparisons use the first occurrence inside the exact scope. Earlier kinds must exist; later kinds may be absent. Neither present means false. Bare kinds mean presence; groups and commas mean AND. Braces group scopes, not physical bags. U checks relations, not physical placement legality.
+Comparisons use first occurrences in the exact scope. Earlier kinds must exist; later kinds may be absent. Neither present means false. Bare kinds mean presence; groups and commas mean AND. Braces group scopes, not physical bags. D and U are separate domains. A U relation is not a physical-placement validator.
 
 ## npm / JavaScript
 
-The initial `tessembly@0.1.0` bootstrap publication succeeded. **`0.1.1` is the next MIT npm package version**; a successful build of that version is not a registry publication. The old registry tarball is not rewritten. The package-contract workflow produces a ready-to-install tarball with license text, SHA-256/SHA-512 and source identity.
+**0.1.1 is already published under MIT using OIDC. 0.1.2 is the platform/security candidate.** A passing build is not itself publication, and existing registry tarballs are never rewritten.
 
 ```sh
 npm install tessembly
-# Use a verified artifact for a version not yet published:
-npm install ./tessembly-0.1.1.tgz
+# A verified artifact may be installed before its registry release:
+npm install ./tessembly-0.1.2.tgz
 ```
 
 ```js
 import { createTessembly } from 'tessembly';
 const t = await createTessembly();
 console.log(t.checkPattern('P4:D(I<TS)'));
-const bytes = t.encodePattern('P4:D(T)');
-console.log(t.decodePattern(bytes));
+const binary = t.encodePattern('P4:D(T)');
+console.log(t.decodePattern(binary));
 t.dispose();
 ```
 
-Node.js 22+ and browsers are supported. Browser consumers import `tessembly/browser`; provide `wasmUrl` when a bundler requires an explicitly copied asset, or `wasm` bytes/Module to avoid a fetch. The bundled Wasm uses the same Rust format implementation. No Rust/Python installation, native addon, wasm-bindgen package, install hook, CDN or external dataset is required at runtime.
+Node.js 22+ is supported. Browser consumers import `tessembly/browser`; provide `wasmUrl` when the bundler requires an explicitly copied asset, or `wasm` bytes/Module to avoid a fetch. The bundled Wasm uses the same Rust implementation. No Rust/Python installation, native addon, wasm-bindgen package, install hook, CDN or dataset is required at runtime.
 
-Every npm dependency category is empty. The Wasm build uses only local Rust crates and the standard library, with no external registry crates or Wasm imports. Native CLI/TCK JSON transport still uses serde_json, but it is not linked into npm. Svelte and browser-test tooling are isolated documentation/development dependencies.
+All npm dependency categories are empty. Wasm uses local crates and the Rust standard library, with no external registry crates or Wasm imports. Native CLI/TCK JSON transport still uses serde_json, which is not linked into npm. Svelte and test tooling are isolated development dependencies.
 
-The npm library selects the browser primary language or Node's platform locale; only `ko` selects Korean. `language`, `setLanguage`, `TESSEMBLY_LANG` and CLI `--lang` provide explicit overrides. The native Rust CLI uses `--lang` and locale environment variables, falling back to English when none are set. Desktop hosts without such variables should supply the preference or use the npm CLI's Intl detection. Error codes, byte spans, machine JSON, syntax and binary data never change with presentation language.
+The npm library uses browser primary language or the Node platform locale; only `ko` selects Korean. `language`, `setLanguage`, `TESSEMBLY_LANG` and `--lang` provide overrides. The native Rust CLI uses explicit preferences and locale environment variables, falling back to English when none are supplied. Desktop hosts without those variables should supply the locale or use npm CLI Intl detection. Codes, byte spans, machine JSON, syntax and stored bytes are never translated.
 
 ## Advanced documents
 
@@ -72,13 +72,13 @@ supply("P4");
 draw(I<TS, I);
 ```
 
-Declarations include config, supply, draw, use, reference and select. Sources include pattern, queue, shuffle, bag, pool, take, repeat, concat, either and versioned external references. Custom IDs require registration. Positive token weights describe custom models; standard seven_bag cannot silently be reweighted.
+Declarations include config, supply, draw, use, reference and select. Sources include pattern, queue, shuffle, bag, pool, take, repeat, concat, either and versioned external references. Custom IDs require registration. Positive token weights describe custom models; standard seven_bag cannot silently be reweighted. These are declarations, not script execution or network calls.
 
-NONE, EMPTY, occupied hold and turn lock remain distinct. Advanced `deny=["T"]` gates hold while T is active; it is not a compact option or a new Clearra UI feature. No supplied piece or token origin is invented.
+NONE, EMPTY, occupied hold and turn lock remain distinct. Advanced `deny=["T"]` gates hold while T is active; it is not a compact option or a new Clearra UI feature. No piece or origin is invented.
 
 ## Native build and file tools
 
-Rust **1.85.0** is the pinned toolchain. No Python build/runtime dependency.
+Rust **1.85.0** is pinned. No Python build/runtime dependency. Node is needed only for cross-platform developer transport regression fixtures, not for native library/CLI operation.
 
 ```sh
 cargo +1.85.0 build --locked --workspace
@@ -91,39 +91,47 @@ cargo run --locked -p tessembly-cli -- doc-encode examples/advanced/basic.tsmd e
 cargo run --locked -p tessembly-cli -- doc-decode example.tsmb restored.tsmd
 ```
 
-Compact file tools require an explicit profile; advanced documents carry a header. TSMB encodes the standard AST; TSDC carries the environment, structured sources, custom IDs, conditions and references. Unknown critical sections fail, optional opaque sections are preserved, and text export refuses to discard opaque metadata.
+Outputs must be new files; conversion refuses overwriting an existing destination. Compact file tools require an explicit profile; advanced documents carry a header. TSMB encodes the standard AST; TSDC carries environment, sources, custom IDs, conditions and references. Unknown critical sections fail, optional opaque sections are preserved, and text export refuses silent metadata loss.
 
 ## Components and external ownership
 
 | Component | Responsibility |
 |---|---|
-| tessembly-core | AST, spans, immutable environment, standard hold-supply state |
+| tessembly-core | AST, spans, cumulative model budget, environment and standard hold-supply state |
 | tessembly-text | Compact parser and normalized printer |
 | tessembly-relations | Before/Present relations and local impossibility proofs |
 | tessembly-codec | Standard structural AST wire |
 | tessembly-document | Advanced grammar, schema and document wire |
 | tessembly-cli | Native file commands and reference test ports |
-| tessembly-conformance | Optional independent tools for external integrators |
+| tessembly-conformance | Optional independent tools for external developers |
 | bindings/wasm | Standalone std/local-only Wasm build |
 | packages/npm | Zero-dependency ESM API and localized CLI |
 | apps/docs | Prerendered bilingual SvelteKit documentation |
 
 **The user or external developers implement dataset and Clearra/CTK3/Sfinder/Fumen/HF adapters.** References never auto-fetch. Randomizer execution, see-n/QB/OQB evaluation, PC search, game legality and replay belong to consumers, not a hidden internal backlog.
 
-Conformance tools are optional developer tools, **not an internal production runtime**. Connect them through the consumer's real ingress/compile/execution/output path. Repository CI against the reference CLI is regression evidence, not certification of an external app or dataset.
+Conformance tools are optional developer tools, **not an internal production runtime**. Connect them through the consumer's real ingress/compile/execution/output path. Repository CI against the reference CLI is regression evidence, not certification of external apps or datasets.
 
 ```sh
 cargo run --locked -p tessembly-conformance -- --report compact-report.json -- target/debug/tessembly test-port
 cargo run --locked -p tessembly-conformance --bin tessembly-document-tck -- --report document-report.json -- target/debug/tessembly doc-port
 ```
 
-Use `.exe` on Windows. Execute only trusted host commands; these tools are not a sandbox. UNSAT, NOT_CHECKED, UNSUPPORTED_STATE and INCOMPLETE remain separate.
+Use `.exe` on Windows. Only execute trusted commands: the tools are not a sandbox or process-tree jail. UNSAT, NOT_CHECKED, UNSUPPORTED_STATE and INCOMPLETE remain distinct.
+
+## Platforms and security
+
+CI runs native GNU/Linux on Ubuntu 22.04/24.04, musl on Ubuntu, Windows x64, and macOS Intel/Apple Silicon. The same npm tarball is installed on five OS configurations with Node 22 and 24. Actual commit-specific CI is the evidence, not merely listing targets. Native artifacts carry source/target identity, MIT and checksums; signing/notarization is not included.
+
+0.1.2 bounds input before large copies, shares document-wide budgets, quarantines unexpected Wasm traps, and caps packaged linear memory at **32 MiB per instance**. Linear memory is not process RSS or a concurrent-instance cap. Public services must apply CPU/time/concurrency/process limits; custom Wasm and paths are trusted host configuration. See SECURITY.md for remaining duties. No guarantee against all attacks or independent security certification is claimed.
+
+A separate security workflow runs **after npm platform tests**, with mutation/transport/archive regressions and exact locked-version advisory lookup. Testing tools do not become product dependencies.
 
 ## Documentation development
 
 ```sh
 cd apps/docs
-npm ci
+npm ci --ignore-scripts
 npm audit --audit-level=low
 npm run test:content
 npm run check
@@ -132,16 +140,22 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-CI treats Svelte warnings as failures and checks both language routes, primary-language selection, no-JavaScript content, mobile navigation, code copying and exact deployed source identity. The cookie security override is pinned without downgrading SvelteKit.
+CI fails on Svelte warnings, checks language routes/primary-language selection/no-JavaScript pages/mobile navigation/copying, and verifies exact public deployed source. Actions are pinned to commit hashes. Temporary source-migration and bootstrap writer workflows are removed after their reviewed changes are applied.
 
 ## OIDC releases
 
-The package owner configures npm Trusted Publisher for **daejunnom / Tessembly / npm-release.yml / environment npm**, with direct **npm publish** permission. Run the current workflow on **main**, `expected_version=0.1.1`, and select `mode=publish`. The default `verify-only` builds and validates without publishing or testing npm authorization. There is no authentication selector, token Secret reference, or automatic token fallback. Do not rerun the old bootstrap job.
+The npm Trusted Publisher remains **daejunnom / Tessembly / npm-release.yml / environment npm**, with direct **npm publish** permission. Use a NEW manual run on **main**, `mode=publish`, `expected_version=0.1.2`. The default `verify-only` does not publish or test npm authorization. No npm token Secret is loaded or used as fallback.
 
-[Complete setup, verification and token retirement instructions](docs/PUBLISHING.md). Revoke the bootstrap token only after an actual OIDC publication is verified. Do not paste secrets or recovery credentials into issues, source or chat.
+The 0.1.1 upload was accepted; only the old checker failed after about 38 seconds. The original file is now confirmed through read-only recovery:
+
+```sh
+node scripts/release-contract.mjs recover docs/release-receipts/0.1.1.json
+```
+
+Current confirmation distinguishes propagation, permanent mismatch and an exact existing artifact. It does not delete, overwrite or blindly republish a version. A source push does not publish 0.1.2. [Full process](docs/PUBLISHING.md).
 
 ## License / 라이선스
 
-[MIT](LICENSE) — Copyright (c) 2026 daejunnom. The grant covers Tessembly project sources and documentation. The npm package carries the same license text and MIT metadata. Third-party components retain their own licenses.
+[MIT](LICENSE) — Copyright (c) 2026 daejunnom. Project sources and documentation are covered, and npm includes the same text. Third-party components retain their own licenses.
 
-테섬블리 소스와 문서 및 npm 패키지는 MIT 라이선스입니다. 제3자 구성요소의 라이선스는 변경하지 않습니다. npm 배포 메타데이터와 LICENSE를 갱신할 버전은 0.1.1이며, Rust 내부 버전·의미 프로필·바이너리 버전은 이번 라이선스 변경으로 올리지 않습니다. 정식 릴리스 태그나 crates.io 배포는 이 변경에 포함되지 않습니다.
+소스·문서·npm 패키지는 MIT입니다. 0.1.1은 이미 OIDC로 공개됐고 0.1.2는 플랫폼·보안 보강 후보입니다. 의미 프로필과 바이너리 버전은 유지하며, 레지스트리 배포·서명·공증·crates.io 공개는 별도 작업입니다.
