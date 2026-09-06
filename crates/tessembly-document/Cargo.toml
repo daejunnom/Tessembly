@@ -1,0 +1,11 @@
+[package]
+name = "tessembly-document"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tessembly-core.workspace = true
+tessembly-text.workspace = true
+tessembly-codec.workspace = true
