@@ -38,8 +38,6 @@ jobs:
       NODE_AUTH_TOKEN: ''
       NPM_TOKEN: ''
       NPM_ID_TOKEN: ''
-      NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/tessembly-oidc.npmrc
-      NPM_CONFIG_GLOBALCONFIG: ${{ runner.temp }}/tessembly-oidc-global.npmrc
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,11 +58,14 @@ jobs:
       - name: Prepare isolated token-free npm configuration
         env:
           RELEASE_MODE: ${{ inputs.mode }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/tessembly-oidc.npmrc
+          NPM_CONFIG_GLOBALCONFIG: ${{ runner.temp }}/tessembly-oidc-global.npmrc
         run: |
           set -euo pipefail
           case "$RELEASE_MODE" in verify-only|publish) ;; *) echo 'Invalid release mode'; exit 1;; esac
           printf 'registry=https://registry.npmjs.org/\n' > "$NPM_CONFIG_USERCONFIG"
           : > "$NPM_CONFIG_GLOBALCONFIG"
+          printf 'NPM_CONFIG_USERCONFIG=%s\nNPM_CONFIG_GLOBALCONFIG=%s\n' "$NPM_CONFIG_USERCONFIG" "$NPM_CONFIG_GLOBALCONFIG" >> "$GITHUB_ENV"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
           node --input-type=module <<'NODE'
