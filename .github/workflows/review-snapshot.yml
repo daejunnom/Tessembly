@@ -1,0 +1,52 @@
+name: Security review snapshot
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/review-snapshot.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Archive tracked sources and inspect public registry without credentials
+        run: |
+          mkdir review
+          git archive --format=tar.gz --output=review/source.tar.gz HEAD
+          git rev-parse HEAD > review/source-commit.txt
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const expected='sha512-e4KxfLAkyOXUk3T2LK4BSYmyoZE8t3JRyOaO1HQgR59elN4e5pTgCYJNudbO2crMD9uB2laaXdBCTu2WkJzGAw==';
+          const r=await fetch('https://registry.npmjs.org/tessembly/0.1.1',{signal:AbortSignal.timeout(15000),headers:{'cache-control':'no-cache'}});
+          let out={http_status:r.status};
+          if(r.ok){
+            const m=await r.json();
+            out={...out,name:m.name,version:m.version,license:m.license,integrity:m.dist?.integrity,dependencies:m.dependencies??{},attestations:m.dist?.attestations??null,expected_integrity:expected,integrity_matches:m.dist?.integrity===expected};
+            if(m.dist?.tarball==='https://registry.npmjs.org/tessembly/-/tessembly-0.1.1.tgz'){
+              const t=await fetch(m.dist.tarball,{signal:AbortSignal.timeout(15000)});
+              if(!t.ok)throw new Error('TARBALL_FETCH_FAILED');
+              const b=Buffer.from(await t.arrayBuffer());
+              if(b.length>2_000_000)throw new Error('TARBALL_LIMIT');
+              out.downloaded_integrity='sha512-'+crypto.createHash('sha512').update(b).digest('base64');
+              fs.writeFileSync('review/tessembly-0.1.1.tgz',b);
+            }
+          }
+          fs.writeFileSync('review/registry.json',JSON.stringify(out,null,2));
+          console.log(JSON.stringify(out,null,2));
+          NODE
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: source-security-review
+          path: review/
+          retention-days: 7
+          if-no-files-found: error
