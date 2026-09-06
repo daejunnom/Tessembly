@@ -1,0 +1,25 @@
+[package]
+name = "tessembly-wasm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tessembly-core = { path = "../../crates/tessembly-core" }
+tessembly-text = { path = "../../crates/tessembly-text" }
+tessembly-relations = { path = "../../crates/tessembly-relations" }
+tessembly-codec = { path = "../../crates/tessembly-codec" }
+tessembly-document = { path = "../../crates/tessembly-document" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

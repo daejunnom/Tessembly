@@ -1,0 +1,48 @@
+name: npm package contracts
+on:
+  push:
+    branches: [main]
+    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', '.github/workflows/npm.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Build Rust-only Wasm with no registry dependencies
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
+          cargo +1.85.0 test --locked --offline --manifest-path bindings/wasm/Cargo.toml
+          cargo +1.85.0 clippy --locked --offline --manifest-path bindings/wasm/Cargo.toml -- -D warnings
+          cargo +1.85.0 build --locked --offline --manifest-path bindings/wasm/Cargo.toml --target wasm32-unknown-unknown --release
+          cp bindings/wasm/target/wasm32-unknown-unknown/release/tessembly_wasm.wasm packages/npm/tessembly.wasm
+          cargo +1.85.0 metadata --locked --offline --manifest-path bindings/wasm/Cargo.toml --format-version 1 > /tmp/wasm-deps.json
+          node -e 'const m=require("/tmp/wasm-deps.json"); if(m.packages.some(p=>p.source!==null)) process.exit(1); console.log("External Rust dependencies: 0")'
+      - name: Check package and Node API
+        working-directory: packages/npm
+        run: |
+          npm test
+          npm run check:package
+          npm pack --ignore-scripts
+      - name: Exercise installed tarball without lifecycle scripts
+        run: |
+          mkdir /tmp/tessembly-consumer
+          cd /tmp/tessembly-consumer
+          npm init -y > /dev/null
+          npm install --ignore-scripts "$GITHUB_WORKSPACE/packages/npm/tessembly-0.1.0.tgz"
+          npm ls --all
+          node --input-type=module -e 'import {createTessembly} from "tessembly"; const t=await createTessembly(); if(t.checkPattern("P7:D(I<T<I)").draw!=="UNSAT")process.exit(1); console.log("INSTALLED_TARBALL_OK"); t.dispose();'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: tessembly-npm-package
+          path: packages/npm/*.tgz
+          retention-days: 14
