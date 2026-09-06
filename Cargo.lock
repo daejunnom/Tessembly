@@ -98,6 +98,7 @@ dependencies = [
  "serde_json",
  "tessembly-codec",
  "tessembly-core",
+ "tessembly-document",
  "tessembly-relations",
  "tessembly-text",
 ]
@@ -119,6 +120,15 @@ dependencies = [
 [[package]]
 name = "tessembly-core"
 version = "0.1.0"
+
+[[package]]
+name = "tessembly-document"
+version = "0.1.0"
+dependencies = [
+ "tessembly-codec",
+ "tessembly-core",
+ "tessembly-text",
+]
 
 [[package]]
 name = "tessembly-relations"
