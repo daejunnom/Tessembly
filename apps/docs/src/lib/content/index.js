@@ -1,6 +1,7 @@
-import { reviewChapters } from './review.js';
+import { migrationChapters } from './migration.js';
 import { start } from './start.js';
 import { compact } from './compact.js';
+import { filters } from './filters.js';
 import { advanced } from './advanced.js';
 import { state } from './state.js';
 import { integration } from './integration.js';
@@ -9,9 +10,8 @@ import { translateChapter } from './english.js';
 import { npmChapters } from './npm.js';
 import { securityPlatformChapters } from './security-platforms.js';
 /** @type {import('./types').Chapter[]} */
-export const chapters = [start[0], ...compact, ...advanced, ...state, ...integration, ...tools, npmChapters.ko, ...securityPlatformChapters.ko, ...reviewChapters.ko, start[1]];
-// One source of executable examples for both presentation languages.
-const requestBlock = chapters.find(c=>c.slug==='tools').sections.find(s=>s.id==='connect').blocks[0];
-requestBlock.text = JSON.stringify({id:1,protocol:'tessembly.document-test-port.v1',profile:'tessembly.rfc3.order.v1',op:'validate',text:'tessembly "tessembly.rfc3.order.v1"; supply("P4"); draw(I>TS);'});
-const translated = chapters.map(c=>c.slug==='npm'?npmChapters.en:(securityPlatformChapters.en.find(x=>x.slug===c.slug)??reviewChapters.en.find(x=>x.slug===c.slug)??translateChapter(c)));
-export function getChapters(locale) { return locale==='ko' ? chapters : translated; }
+export const chapters = [start[0], ...compact, ...filters, ...advanced, ...state, ...integration, ...tools, npmChapters.ko, ...securityPlatformChapters.ko, ...migrationChapters.ko, start[1]];
+/** @type {import("./types").Chapter[]} */
+const translated = chapters.map(c => c.slug === 'npm' ? npmChapters.en : (securityPlatformChapters.en.find(x => x.slug === c.slug) ?? migrationChapters.en.find(x => x.slug === c.slug) ?? translateChapter(c)));
+/** @param {string} locale @returns {import("./types").Chapter[]} */
+export function getChapters(locale) { return locale === 'ko' ? chapters : translated; }

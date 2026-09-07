@@ -1,15 +1,156 @@
-const p = (text) => ({ kind: 'p', text });
-const code = (text) => ({ kind: 'code', text, language: 'tessembly' });
-const note = (text) => ({ kind: 'note', text });
-const table = (headers, rows) => ({ kind: 'table', headers, rows });
-/** @type {import('./types').Chapter[]} */
-export const state = [{
-  slug: 'state', title: '가방·관측·홀드', kicker: 'STATE CONTRACTS',
-  summary: '실제 공급, 알고 있는 정보, 현재 사용할 수 있는 미노를 서로 다른 상태로 보존합니다.',
-  sections: [
-    { id: 'bag', title: '표준 가방과 사용자 정의 공급', blocks: [p('seven_bag()는 표준 일곱 종류가 각각 한 번씩 나오는 균등 가방 정책을 선언합니다. 남은 종류가 r개이면 기본 모델의 다음 종류 확률은 각각 1/r입니다. 초기 잔여분은 remainder("SZ", epoch=2)처럼 별도로 기록할 수 있습니다.'), code('config {\n    rule = seven_bag();\n    start = remainder("SZ", epoch=2);\n}'), p('패턴의 구간이나 중괄호를 가방 경계로 추측하지 않습니다. 고정 큐나 P3P3를 자동으로 표준 가방에 맞춰 수정하지도 않습니다. rule 선언은 외부 소비자가 공급의 가방 합법성을 추가 검증할 때 사용하며, 문서 검사 자체는 게임의 실제 공급을 증명하지 않습니다.'), p('중복이나 가중치가 필요하면 명시적인 커스텀 bag/pool을 사용합니다. weights는 목록의 각 개별 토큰에 대응하는 양의 정수입니다. bag에서는 아직 뽑지 않은 토큰을 그 가중치 비율로 선택하고, pool에서는 같은 토큰 목록에서 복원 추출하는 모델입니다. 가중치가 생략되면 토큰별 1입니다. 샘플링과 조건부 확률 계산은 외부 프로그램 책임입니다.')] },
-    { id: 'view', title: 'see-n은 명시적인 공개 계약', blocks: [code('config {\n    see = view(active=true, next=5, hold=true,\n               memory=history, reveal=supply, bag=known);\n}'), table(['항목','의미 / 문서 v1 기본값'],[['active','현재 미노 공개 / true'],['next','직접 공개되는 넥스트 개수 / 5'],['hold','홀드 내용 공개 / true'],['memory','history 또는 current / history'],['reveal','supply, lock, host / supply'],['bag','공개된 가방 지식 known 또는 hidden / known']]), p('supply는 실제 공급 소비로 창이 진행될 때, lock은 배치 후 결정 경계에서, host는 소비자가 명시한 공개 이벤트에서 관측이 갱신되는 계약입니다. all()은 선언된 분석 범위의 실제 공급을 전부 공개합니다. 모호한 see-7 이름 하나만 저장하지 않습니다.'), note('홀드가 비어 있다고 보이지 않는 넥스트를 하나 더 읽지 않습니다. 가방 규칙으로 남은 SZ/ZS 후보를 좁히는 것은 직접 공개 창이 늘어난 것과 다릅니다. 아직 미공개인 미노를 부재로 판정해서도 안 됩니다.')] },
-    { id: 'hold', title: '홀드 상태는 여러 축', blocks: [code('config {\n    hold = slot(initial=empty, used=false, allowed=true, deny=["T"]);\n    active = token("I", origin=10);\n    queue = [token("O", origin=11)];\n    cursor = 0;\n    tail = end;\n}'), table(['표현','상태'],[['hold=none()','홀드 기능·슬롯 없음'],['hold=slot(initial=empty)','사용 가능한 빈 슬롯'],['initial=token("T",origin=9)','명시된 출처의 T가 보관됨'],['used=true','이번 턴에 이미 홀드하여 재홀드 잠김'],['allowed=false','기본 정책상 홀드 행동 금지'],['deny=["T"]','요청 전 active가 T인 동안 홀드 행동 금지']]), p('deny는 고급 내부 문법 전용입니다. D/U 단축 옵션도, Clearra에 추가할 UI 기능도 아닙니다. held가 T라는 이유로 적용하지 않으며, T의 일반 이동·배치를 금지하지 않습니다. 같은 종류라도 출처가 다르면 서로 다른 토큰입니다.'), p('차 있는 홀드 교환은 다음 큐를 추가 소비하지 않습니다. 빈 홀드는 실제 다음 미노 하나를 소비합니다. 두 경우 모두 이번 턴은 잠기며, 호스트가 확인한 배치와 다음 스폰 뒤에 잠금이 해제됩니다. 실패한 교환은 상태를 변경하지 않습니다.')] },
-    { id: 'adapter', title: '부족한 정보와 미지원 상태', blocks: [p('tail=pending은 다음 공급 정보가 아직 필요하다는 뜻이고 tail=end는 공급이 끝났다는 뜻입니다. 둘을 정확한 빈 해법으로 묶지 않습니다. 설정 누락도 EMPTY 또는 NONE으로 자동 변환하지 않습니다.'), p('어떤 외부 데이터셋이 차 있는 홀드만 지원한다면 빈 홀드는 UNSUPPORTED_STATE입니다. 임의의 미노를 채워 조회하면 안 됩니다. 소비자가 검증된 상태 매핑을 제공할 수는 있지만, 실제 active/held, 큐 소비, 가방 잔여분, 공개 정보, 합법 행동 대응을 보존해야 합니다.'), note('외부 데이터셋 연결과 매핑은 사용자 또는 외부 개발자가 구현합니다. 테섬블리의 선언·검사 통과는 그 데이터셋의 지원 범위나 PC 성공을 보증하지 않습니다.')] }
-  ]
-}];
+/** @type {import("./types").Chapter[]} */
+export const state = [
+  {
+    "slug": "state",
+    "title": "가방·관측·홀드",
+    "kicker": "STATE CONTRACTS",
+    "summary": "실제 공급, 알고 있는 정보, 현재 사용할 수 있는 미노를 서로 다른 상태로 보존합니다.",
+    "sections": [
+      {
+        "id": "bag",
+        "title": "표준 가방과 사용자 정의 공급",
+        "blocks": [
+          {
+            "kind": "p",
+            "text": "seven_bag()는 표준 일곱 종류가 각각 한 번씩 나오는 균등 가방 정책을 선언합니다. 남은 종류가 r개이면 기본 모델의 다음 종류 확률은 각각 1/r입니다. 초기 잔여분은 remainder(\"SZ\", epoch=2)처럼 별도로 기록할 수 있습니다."
+          },
+          {
+            "kind": "code",
+            "text": "config {\n    rule = seven_bag();\n    start = remainder(\"SZ\", epoch=2);\n}",
+            "language": "tessembly"
+          },
+          {
+            "kind": "p",
+            "text": "패턴의 구간이나 중괄호를 가방 경계로 추측하지 않습니다. 고정 큐나 P3P3를 자동으로 표준 가방에 맞춰 수정하지도 않습니다. rule 선언은 외부 소비자가 공급의 가방 합법성을 추가 검증할 때 사용하며, 문서 검사 자체는 게임의 실제 공급을 증명하지 않습니다."
+          },
+          {
+            "kind": "p",
+            "text": "중복이나 가중치가 필요하면 명시적인 커스텀 bag/pool을 사용합니다. weights는 목록의 각 개별 토큰에 대응하는 양의 정수입니다. bag에서는 아직 뽑지 않은 토큰을 그 가중치 비율로 선택하고, pool에서는 같은 토큰 목록에서 복원 추출하는 모델입니다. 가중치가 생략되면 토큰별 1입니다. 샘플링과 조건부 확률 계산은 외부 프로그램 책임입니다."
+          }
+        ]
+      },
+      {
+        "id": "view",
+        "title": "see-n은 명시적인 공개 계약",
+        "blocks": [
+          {
+            "kind": "code",
+            "text": "config {\n    see = view(active=true, next=5, hold=true,\n               memory=history, reveal=supply, bag=known);\n}",
+            "language": "tessembly"
+          },
+          {
+            "kind": "table",
+            "headers": [
+              "항목",
+              "의미 / 문서 v1 기본값"
+            ],
+            "rows": [
+              [
+                "active",
+                "현재 미노 공개 / true"
+              ],
+              [
+                "next",
+                "직접 공개되는 넥스트 개수 / 5"
+              ],
+              [
+                "hold",
+                "홀드 내용 공개 / true"
+              ],
+              [
+                "memory",
+                "history 또는 current / history"
+              ],
+              [
+                "reveal",
+                "supply, lock, host / supply"
+              ],
+              [
+                "bag",
+                "공개된 가방 지식 known 또는 hidden / known"
+              ]
+            ]
+          },
+          {
+            "kind": "p",
+            "text": "supply는 실제 공급 소비로 창이 진행될 때, lock은 배치 후 결정 경계에서, host는 소비자가 명시한 공개 이벤트에서 관측이 갱신되는 계약입니다. all()은 선언된 분석 범위의 실제 공급을 전부 공개합니다. 모호한 see-7 이름 하나만 저장하지 않습니다."
+          },
+          {
+            "kind": "note",
+            "text": "홀드가 비어 있다고 보이지 않는 넥스트를 하나 더 읽지 않습니다. 가방 규칙으로 남은 SZ/ZS 후보를 좁히는 것은 직접 공개 창이 늘어난 것과 다릅니다. 아직 미공개인 미노를 부재로 판정해서도 안 됩니다."
+          }
+        ]
+      },
+      {
+        "id": "hold",
+        "title": "홀드 상태는 여러 축",
+        "blocks": [
+          {
+            "kind": "code",
+            "text": "config {\n    hold = slot(initial=empty, used=false, allowed=true, deny=[\"T\"]);\n    active = token(\"I\", origin=10);\n    queue = [token(\"O\", origin=11)];\n    cursor = 0;\n    tail = end;\n}",
+            "language": "tessembly"
+          },
+          {
+            "kind": "table",
+            "headers": [
+              "표현",
+              "상태"
+            ],
+            "rows": [
+              [
+                "hold=none()",
+                "홀드 기능·슬롯 없음"
+              ],
+              [
+                "hold=slot(initial=empty)",
+                "사용 가능한 빈 슬롯"
+              ],
+              [
+                "initial=token(\"T\",origin=9)",
+                "명시된 출처의 T가 보관됨"
+              ],
+              [
+                "used=true",
+                "이번 턴에 이미 홀드하여 재홀드 잠김"
+              ],
+              [
+                "allowed=false",
+                "기본 정책상 홀드 행동 금지"
+              ],
+              [
+                "deny=[\"T\"]",
+                "요청 전 active가 T인 동안 홀드 행동 금지"
+              ]
+            ]
+          },
+          {
+            "kind": "p",
+            "text": "deny는 고급 내부 문법 전용입니다. D/U 단축 옵션도, Clearra에 추가할 UI 기능도 아닙니다. held가 T라는 이유로 적용하지 않으며, T의 일반 이동·배치를 금지하지 않습니다. 같은 종류라도 출처가 다르면 서로 다른 토큰입니다."
+          },
+          {
+            "kind": "p",
+            "text": "차 있는 홀드 교환은 다음 큐를 추가 소비하지 않습니다. 빈 홀드는 실제 다음 미노 하나를 소비합니다. 두 경우 모두 이번 턴은 잠기며, 호스트가 확인한 배치와 다음 스폰 뒤에 잠금이 해제됩니다. 실패한 교환은 상태를 변경하지 않습니다."
+          }
+        ]
+      },
+      {
+        "id": "adapter",
+        "title": "부족한 정보와 미지원 상태",
+        "blocks": [
+          {
+            "kind": "p",
+            "text": "tail=pending은 다음 공급 정보가 아직 필요하다는 뜻이고 tail=end는 공급이 끝났다는 뜻입니다. 둘을 정확한 빈 해법으로 묶지 않습니다. 설정 누락도 EMPTY 또는 NONE으로 자동 변환하지 않습니다."
+          },
+          {
+            "kind": "p",
+            "text": "어떤 외부 데이터셋이 차 있는 홀드만 지원한다면 빈 홀드는 UNSUPPORTED_STATE입니다. 임의의 미노를 채워 조회하면 안 됩니다. 소비자가 검증된 상태 매핑을 제공할 수는 있지만, 실제 active/held, 큐 소비, 가방 잔여분, 공개 정보, 합법 행동 대응을 보존해야 합니다."
+          },
+          {
+            "kind": "note",
+            "text": "외부 데이터셋 연결과 매핑은 사용자 또는 외부 개발자가 구현합니다. 테섬블리의 선언·검사 통과는 그 데이터셋의 지원 범위나 PC 성공을 보증하지 않습니다."
+          }
+        ]
+      }
+    ]
+  }
+];

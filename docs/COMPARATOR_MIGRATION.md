@@ -69,17 +69,20 @@ const newBytes = t.migrateRfc2PatternBinary(oldBytes);
 const newDocumentBytes = t.migrateRfc2DocumentBinary(oldDocumentBytes);
 ```
 
-Migration parses RFC2 and preserves `Before`/`Present` relations. It does not blindly replace characters in references, quoted identifiers or external payloads. TSMB/TSDC semantic byte changes 2→3; structural wire remains 1. Nested pattern headers must match the outer document. Both directions of JS/Wasm mismatch fail because the Wasm ABI is now 2. Binary migration with opaque optional metadata fails with `MIGRATION_REQUIRES_METADATA_HANDLER` rather than assuming that unknown metadata is profile-independent.
+Migration parses RFC2 and preserves `Before`/`Present` relations. It does not blindly replace characters in references, quoted identifiers or external payloads. TSMB/TSDC semantic byte changes 2→3; structural wire remains 1. Nested pattern headers must match the outer document. Both directions of JS/Wasm mismatch fail because the The initial RFC3 Wasm ABI was 2; current F1/F2 requires ABI 3. Binary migration with opaque optional metadata fails with `MIGRATION_REQUIRES_METADATA_HANDLER` rather than assuming that unknown metadata is profile-independent.
 
-이관은 RFC2를 파싱하여 Before/Present를 보존합니다. 참조 문자열·식별자·외부 값의 부등호를 일괄 치환하지 않습니다. TSMB/TSDC 의미 바이트는 2→3, 구조 wire는 1을 유지합니다. 내장 패턴과 외부 문서의 헤더도 일치해야 합니다. Wasm ABI는 2이므로 이전 JS와 새 Wasm, 새 JS와 이전 Wasm의 혼합을 거부합니다. 불투명 선택 메타데이터의 의미를 알 수 없으면 `MIGRATION_REQUIRES_METADATA_HANDLER`로 멈춥니다.
+이관은 RFC2를 파싱하여 Before/Present를 보존합니다. 참조 문자열·식별자·외부 값의 부등호를 일괄 치환하지 않습니다. TSMB/TSDC 의미 바이트는 2→3, 구조 wire는 1을 유지합니다. 내장 패턴과 외부 문서의 헤더도 일치해야 합니다. 초기 RFC3 ABI는 2였고 현재 F1/F2 ABI는 3이므로 이전 JS와 새 Wasm, 새 JS와 이전 Wasm의 혼합을 거부합니다. 불투명 선택 메타데이터의 의미를 알 수 없으면 `MIGRATION_REQUIRES_METADATA_HANDLER`로 멈춥니다.
 
-## Approval boundary / 승인 경계
+## Current implementation / 현재 구현
 
-Comparator alignment and explicit migration are implemented. Logical-filter extensions and richer QB/OQB declarations are **DESIGN ONLY / AWAITING GO**. Existing `reference`/`select` data declarations are unchanged. No new solver, policy evaluator, dataset adapter, randomizer execution or replay implementation is included.
+F1/F2 logic, counts, windows and ordinals are implemented in 0.3.x. The comparator migration
+started in 0.2.0. Current wrapper/Wasm ABI is 3 (initial RFC3-only builds used ABI 2).
+Q1/M1/MATCH and setup/policy/dataset extensions are not added. Basic reference/select records
+are retained for file compatibility.
 
-부등호 수정과 명시적 이관만 구현했습니다. 논리 필터와 QB/OQB 선언 확장은 **설계 전용 / GO 대기**입니다. 기존 reference/select의 데이터 선언은 변경하지 않았습니다. 탐색기·정책 평가기·DB 어댑터·랜덤 공급 실행기·리플레이는 추가하지 않았습니다.
-
-See [한국어 검토 계획](plans/FILTERS_QB_OQB.ko.md) / [English review plan](plans/FILTERS_QB_OQB.en.md).
+F1/F2는 0.3.x에 구현되어 있습니다. 최초 RFC3 변경은 0.2.0에서 시작했고 현재
+wrapper/Wasm ABI는 3입니다. 초기 ABI=2 자산과 혼용하지 마세요. Q1/M1/MATCH는
+추가하지 않고 기존 reference/select 레코드만 호환 목적으로 보존합니다.
 
 ## Sources / 근거
 

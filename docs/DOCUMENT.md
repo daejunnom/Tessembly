@@ -102,4 +102,18 @@ External data access and actual Clearra/CTK3/Fumen/Sfinder/HF adapters are imple
 the user or other developers. They are not pending internal Tessembly features. A consumer
 must negotiate capabilities and report unsupported profiles/states without dropping data.
 
-Legacy RFC2 documents require explicit migration. Rich QB/OQB and Boolean extensions are not implemented; see [review plan](plans/FILTERS_QB_OQB.en.md).
+Legacy RFC2 documents require explicit migration. F1/F2 are implemented. Q1/M1/MATCH are not added. Existing reference/select records remain for compatibility, not new supply authoring.
+
+
+## Implemented F1/F2
+
+`draw(IN(1,3,T)&I<T,T);` shares the compact filter parser. The normalized forms are
+`all`, `any`, `not`, `count`, `within`, `nth`, `before`, `present`. For example
+`before("I","T")`, `count("T",">=",2)`, `present(nth("T",2))`, and
+`within(1,3,present("T"))`. These are data calls, not execution. F2 is D-only.
+
+Predicate tag 2 stores a u32-length-prefixed TSFL v1 structural payload; old tags 0/1 remain.
+TSFL starts with ASCII TSFL and byte 1. Tags 0..6 are Present, Before, Count, All, Any, Not, In.
+Canonical ULEB values encode lengths, ordinals and bounds. Selectors carry ID and one-based
+ordinal. Count operator bytes 0..5 are =, !=, <, <=, >, >=. Whole-document budgets include
+embedded patterns and all filter nodes. There is no source reparse or DNF/CNF expansion.

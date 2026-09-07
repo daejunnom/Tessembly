@@ -1,29 +1,355 @@
-const p=text=>({kind:'p',text});
-const note=text=>({kind:'note',text});
-const code=(text,language='shell')=>({kind:'code',text,language});
-const table=(headers,rows)=>({kind:'table',headers,rows});
-const platformRows=[['Ubuntu 22.04 / 24.04','x86_64-unknown-linux-gnu'],['Linux musl on Ubuntu 24.04','x86_64-unknown-linux-musl'],['Windows 2022 x64','x86_64-pc-windows-msvc'],['macOS 15 Intel','x86_64-apple-darwin'],['macOS 14 Apple Silicon','aarch64-apple-darwin']];
-const recovery='node scripts/release-contract.mjs recover docs/release-receipts/0.1.1.json';
-/** @type {Record<string,import('./types').Chapter[]>} */
-export const securityPlatformChapters={
- en:[{slug:'platforms',title:'Supported platforms',kicker:'NATIVE / NODE / BROWSER',summary:'One format implementation, tested target-specific executables and an identical zero-dependency npm artifact across operating systems.',sections:[
- {id:'native',title:'Native validation matrix',blocks:[table(['CI host','Rust target'],platformRows),p('Rust 1.85.0 builds, tests and executes the CLI and optional external-developer TCK for each target. Native artifacts include MIT, source identity and SHA-256 values. The exact commit CI result is the evidence; a matrix declaration alone is not proof of success.')]},
- {id:'npm',title:'The same installed npm tarball',blocks:[p('Ubuntu 22.04/24.04, Windows x64, macOS Intel and Apple Silicon each install the same artifact under Node.js 22 and 24. Tests use the installed public API and CLI, paths with spaces and Unicode, malformed inputs and an actual linear-memory growth denial. Browser contracts use Chromium in three primary-language settings.'),code("import { createTessembly } from 'tessembly';\nconst t = await createTessembly();\nconsole.log(t.checkPattern('P4:D(T)'));\nt.dispose();",'javascript')]},
- {id:'limits',title:'Compatibility is not universal certification',blocks:[note('Ubuntu is a Linux distribution. The musl executable is run on the Ubuntu host; this is not a test of every distribution or Alpine. Linux ARM64, Windows ARM64 and every browser engine are not in this matrix.'),p('Windows CI uses Server 2022, not a Windows 10/11 desktop image. macOS artifacts are not signed/notarized. Node and Rust are development tools; installing npm does not invoke Rust, Python, a native addon or postinstall downloads. Some Unix ZIP downloads require restoring executable permission.')]}]},
- {slug:'security',title:'Security and resource limits',kicker:'SCOPED REVIEW / DEFENSE IN DEPTH',summary:'Bound input and model growth, isolate failed Wasm state and keep publication evidence distinct from upload acceptance.',sections:[
- {id:'inputs',title:'Reject before amplification',blocks:[p('Text is capped at 65,536 UTF-8 bytes before large encoded copies. Nodes and relation terms share cumulative budgets across embedded patterns. U constraints are charged before permutation-wide copying. File and decoded HTTP-stream readers check actual bytes; Content-Length is not trusted.'),table(['Resource','Reference limit'],[['Text / aggregate model strings','65,536 bytes'],['Depth / nodes / predicates','48 / 4,096 / 4,096'],['Finite supply / hold queue','256 pieces'],['Packaged Wasm linear memory','32 MiB per instance'],['Release archive compressed / inflated','2 MiB / 8 MiB']])]},
- {id:'wasm',title:'Memory and execution boundaries',blocks:[p('The packaged Wasm module has a 32 MiB linear-memory ceiling. Unexpected traps quarantine the instance; later calls reject until a new instance is created. Ordinary invalid-input errors do not poison it. dispose() releases the reference but does not promise immediate garbage collection.'),note('The ceiling is not Node/browser RSS or a limit over all instances. Replacement Wasm modules, file paths and external TCK commands are trusted configuration. Public servers need concurrency, CPU, memory and worker/process isolation; a Promise timeout cannot interrupt synchronous Wasm.')]},
- {id:'tests',title:'A separate audit, with explicit limits',blocks:[p('After cross-platform npm validation, a separate security workflow reruns malicious-input and transport regressions, audits documentation dependencies and queries exact locked versions in OSV. There are 10,000 bounded deterministic mutation cases; this is not coverage-guided fuzzing or a formal proof.'),p('File outputs refuse existing destinations. Optional TCK bounds stdin/stdout/time and retained failure previews, but does not jail descendant processes. Only trusted commands should be run without a separate OS sandbox. No dataset or host-game certification is implied.'),note('No independent third-party penetration test, sanitizer/Miri campaign, long-running coverage-guided fuzzing or browser-engine audit was performed. See SECURITY.md and docs/SECURITY_REVIEW.md for remaining host responsibilities.')]},
- {id:'release',title:'Recover an accepted npm upload',blocks:[p('The 0.1.1 OIDC upload was accepted; its old final checker stopped after about 38 seconds. Registry metadata and the actual tarball matched the original SHA-512. A read-only receipt can confirm it without a token or republishing.'),code(recovery),p('The new checker separates pending visibility, terminal mismatch and exact existing artifacts. It verifies downloaded bytes and MIT text, retries only transient conditions and never changes a published version. The 0.2.0 hardening candidate must be published separately through main / publish / 0.2.0 after all checks pass.')]}]}
- ],
- ko:[{slug:'platforms',title:'지원 실행 환경',kicker:'NATIVE / NODE / BROWSER',summary:'동일한 형식 구현을 운영체제별 실행 파일과 동일한 zero-dependency npm 압축 파일로 검사합니다.',sections:[
- {id:'native',title:'네이티브 검증 구성',blocks:[table(['CI 실행 환경','Rust 대상'],platformRows),p('Rust 1.85.0으로 각 대상의 CLI와 선택적 외부 개발자용 TCK를 빌드·시험·실행합니다. 네이티브 아티팩트에 MIT·소스 커밋·SHA-256을 포함합니다. 구성표만으로 성공을 주장하지 않고 실제 커밋의 CI 결과를 확인합니다.')]},
- {id:'npm',title:'동일한 npm 파일을 실제 설치',blocks:[p('Ubuntu 22.04·24.04, Windows x64, macOS Intel·Apple Silicon 각각에 Node.js 22와 24로 같은 압축 파일을 설치합니다. 설치된 공개 API·CLI, 공백과 한글 경로, 잘못된 입력, 실제 선형 메모리 확장 거부를 검사합니다. 브라우저 계약은 Chromium의 세 가지 주 언어 환경에서 시험합니다.'),code("import { createTessembly } from 'tessembly';\nconst t = await createTessembly();\nconsole.log(t.checkPattern('P4:D(T)'));\nt.dispose();",'javascript')]},
- {id:'limits',title:'호환성과 보편적인 인증은 다릅니다',blocks:[note('Ubuntu는 Linux 배포판입니다. musl 실행 파일은 Ubuntu 호스트에서 실행하므로 모든 배포판이나 Alpine을 시험했다는 뜻이 아닙니다. Linux ARM64·Windows ARM64·모든 브라우저 엔진은 이번 구성에 없습니다.'),p('Windows CI는 Windows 10/11 데스크톱이 아닌 Server 2022입니다. macOS 서명·공증은 포함하지 않습니다. Node·Rust는 개발 도구이며 npm 설치 시 Rust·Python·네이티브 애드온·추가 다운로드를 실행하지 않습니다. Unix에서 ZIP 압축을 풀면 실행 권한 복원이 필요할 수 있습니다.')]}]},
- {slug:'security',title:'보안과 자원 제한',kicker:'SCOPED REVIEW / DEFENSE IN DEPTH',summary:'입력·모델의 증가를 제한하고 비정상 Wasm 상태를 격리하며, 업로드 수락과 실제 공개 검증을 구분합니다.',sections:[
- {id:'inputs',title:'증폭되기 전에 거부',blocks:[p('큰 인코딩 복사 전에 텍스트의 UTF-8 65,536바이트 한도를 확인합니다. 내장 패턴끼리 노드·관계 예산을 공유하고, U 조건은 순열 전체에 복제하기 전에 예산을 계산합니다. 파일과 HTTP 응답은 Content-Length뿐 아니라 실제 읽은 바이트도 제한합니다.'),table(['자원','참조 한도'],[['텍스트 / 모델 문자열 합계','65,536 bytes'],['깊이 / 노드 / 조건','48 / 4,096 / 4,096'],['유한 공급 / 홀드 큐','256 pieces'],['패키지 Wasm 선형 메모리','인스턴스당 32 MiB'],['배포 압축 파일 / 해제 후','2 MiB / 8 MiB']])]},
- {id:'wasm',title:'메모리와 실행 경계',blocks:[p('포함된 Wasm에 선형 메모리 32MiB 상한을 둡니다. 예상하지 못한 트랩이 발생하면 해당 인스턴스를 재사용하지 않고 새 인스턴스를 요구합니다. 일반적인 입력 오류는 인스턴스를 오염시키지 않습니다. dispose()는 참조를 해제하지만 즉각적인 가비지 컬렉션을 보장하지 않습니다.'),note('상한은 Node·브라우저 전체 RSS나 모든 인스턴스의 합계가 아닙니다. 대체 Wasm·파일 경로·TCK 외부 명령은 신뢰한 설정이어야 합니다. 공개 서버는 동시성·CPU·메모리·Worker/프로세스 격리가 필요하며 Promise 타임아웃만으로 동기 Wasm을 중단할 수 없습니다.')]},
- {id:'tests',title:'별도 점검과 명시적인 한계',blocks:[p('npm 플랫폼 검증 후 별도 보안 워크플로에서 비정상 입력·전송 회귀시험, 문서 의존성 감사, 잠금 파일의 정확한 버전별 OSV 조회를 수행합니다. 결정론적인 제한 변조 사례 10,000개를 사용하며 커버리지 기반 퍼징이나 형식 증명과는 다릅니다.'),p('출력 파일이 이미 존재하면 거부합니다. 외부 개발자용 TCK는 입력·출력·시간·실패 미리보기의 크기를 제한하지만 자식의 후손 프로세스를 가두지는 않습니다. 별도 OS 샌드박스 없이 실행할 때는 신뢰한 명령만 사용해야 하며 데이터셋·게임 엔진을 인증하지 않습니다.'),note('독립적인 제3자 침투시험·sanitizer/Miri 캠페인·장기간 커버리지 기반 퍼징·브라우저 엔진 감사는 수행하지 않았습니다. 남은 호스트 책임은 SECURITY.md와 docs/SECURITY_REVIEW.md에 기록합니다.')]},
- {id:'release',title:'수락된 npm 업로드의 확인 복구',blocks:[p('0.1.1 OIDC 업로드는 수락됐지만 이전 최종 검사가 약 38초 뒤 중단됐습니다. 레지스트리 정보와 실제 압축 파일은 원래 SHA-512와 일치했습니다. 읽기 전용 영수증으로 토큰·재업로드 없이 확인할 수 있습니다.'),code(recovery),p('새 확인기는 공개 반영 대기·확정적인 불일치·동일한 기존 파일을 구분합니다. 다운로드한 파일과 MIT 본문을 검증하고 일시적인 실패만 재시도하며 공개 버전을 바꾸지 않습니다. 0.2.0 보강 후보는 모든 검사 통과 후 main / publish / 0.2.0로 별도 배포해야 합니다.')]}]}
- ]
+/** @type {Record<string,import("./types").Chapter[]>} */
+export const securityPlatformChapters = {
+  "en": [
+    {
+      "slug": "platforms",
+      "title": "Supported platforms",
+      "kicker": "NATIVE / NODE / BROWSER",
+      "summary": "One format implementation, tested target-specific executables and an identical zero-dependency npm artifact across operating systems.",
+      "sections": [
+        {
+          "id": "native",
+          "title": "Native validation matrix",
+          "blocks": [
+            {
+              "kind": "table",
+              "headers": [
+                "CI host",
+                "Rust target"
+              ],
+              "rows": [
+                [
+                  "Ubuntu 22.04 / 24.04",
+                  "x86_64-unknown-linux-gnu"
+                ],
+                [
+                  "Linux musl on Ubuntu 24.04",
+                  "x86_64-unknown-linux-musl"
+                ],
+                [
+                  "Windows 2022 x64",
+                  "x86_64-pc-windows-msvc"
+                ],
+                [
+                  "macOS 15 Intel",
+                  "x86_64-apple-darwin"
+                ],
+                [
+                  "macOS 14 Apple Silicon",
+                  "aarch64-apple-darwin"
+                ]
+              ]
+            },
+            {
+              "kind": "p",
+              "text": "Rust 1.85.0 builds, tests and executes the CLI and optional external-developer TCK for each target. Native artifacts include MIT, source identity and SHA-256 values. The exact commit CI result is the evidence; a matrix declaration alone is not proof of success."
+            }
+          ]
+        },
+        {
+          "id": "npm",
+          "title": "The same installed npm tarball",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "Ubuntu 22.04/24.04, Windows x64, macOS Intel and Apple Silicon each install the same artifact under Node.js 22 and 24. Tests use the installed public API and CLI, paths with spaces and Unicode, malformed inputs and an actual linear-memory growth denial. Browser contracts use Chromium in three primary-language settings."
+            },
+            {
+              "kind": "code",
+              "text": "import { createTessembly } from 'tessembly';\nconst t = await createTessembly();\nconsole.log(t.checkPattern('P4:D(T)'));\nt.dispose();",
+              "language": "javascript"
+            }
+          ]
+        },
+        {
+          "id": "limits",
+          "title": "Compatibility is not universal certification",
+          "blocks": [
+            {
+              "kind": "note",
+              "text": "Ubuntu is a Linux distribution. The musl executable is run on the Ubuntu host; this is not a test of every distribution or Alpine. Linux ARM64, Windows ARM64 and every browser engine are not in this matrix."
+            },
+            {
+              "kind": "p",
+              "text": "Windows CI uses Server 2022, not a Windows 10/11 desktop image. macOS artifacts are not signed/notarized. Node and Rust are development tools; installing npm does not invoke Rust, Python, a native addon or postinstall downloads. Some Unix ZIP downloads require restoring executable permission."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "security",
+      "title": "Security and resource limits",
+      "kicker": "SCOPED REVIEW / DEFENSE IN DEPTH",
+      "summary": "Bound input and model growth, isolate failed Wasm state and keep publication evidence distinct from upload acceptance.",
+      "sections": [
+        {
+          "id": "inputs",
+          "title": "Reject before amplification",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "Text is capped at 65,536 UTF-8 bytes before large encoded copies. Nodes and relation terms share cumulative budgets across embedded patterns. U constraints are charged before permutation-wide copying. File and decoded HTTP-stream readers check actual bytes; Content-Length is not trusted."
+            },
+            {
+              "kind": "table",
+              "headers": [
+                "Resource",
+                "Reference limit"
+              ],
+              "rows": [
+                [
+                  "Text / aggregate model strings",
+                  "65,536 bytes"
+                ],
+                [
+                  "Depth / nodes / predicates",
+                  "48 / 4,096 / 4,096"
+                ],
+                [
+                  "Finite supply / hold queue",
+                  "256 pieces"
+                ],
+                [
+                  "Packaged Wasm linear memory",
+                  "32 MiB per instance"
+                ],
+                [
+                  "Release archive compressed / inflated",
+                  "2 MiB / 8 MiB"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "wasm",
+          "title": "Memory and execution boundaries",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "The packaged Wasm module has a 32 MiB linear-memory ceiling. Unexpected traps quarantine the instance; later calls reject until a new instance is created. Ordinary invalid-input errors do not poison it. dispose() releases the reference but does not promise immediate garbage collection."
+            },
+            {
+              "kind": "note",
+              "text": "The ceiling is not Node/browser RSS or a limit over all instances. Replacement Wasm modules, file paths and external TCK commands are trusted configuration. Public servers need concurrency, CPU, memory and worker/process isolation; a Promise timeout cannot interrupt synchronous Wasm."
+            }
+          ]
+        },
+        {
+          "id": "tests",
+          "title": "A separate audit, with explicit limits",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "After cross-platform npm validation, a separate security workflow reruns malicious-input and transport regressions, audits documentation dependencies and queries exact locked versions in OSV. There are 10,000 bounded deterministic mutation cases; this is not coverage-guided fuzzing or a formal proof."
+            },
+            {
+              "kind": "p",
+              "text": "File outputs refuse existing destinations. Optional TCK bounds stdin/stdout/time and retained failure previews, but does not jail descendant processes. Only trusted commands should be run without a separate OS sandbox. No dataset or host-game certification is implied."
+            },
+            {
+              "kind": "note",
+              "text": "No independent third-party penetration test, sanitizer/Miri campaign, long-running coverage-guided fuzzing or browser-engine audit was performed. See SECURITY.md and docs/SECURITY_REVIEW.md for remaining host responsibilities."
+            }
+          ]
+        },
+        {
+          "id": "release",
+          "title": "Recover an accepted npm upload",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "The 0.1.1 OIDC upload was accepted; its old final checker stopped after about 38 seconds. Registry metadata and the actual tarball matched the original SHA-512. A read-only receipt can confirm it without a token or republishing."
+            },
+            {
+              "kind": "code",
+              "text": "node scripts/release-contract.mjs recover docs/release-receipts/0.1.1.json",
+              "language": "shell"
+            },
+            {
+              "kind": "p",
+              "text": "The new checker separates pending visibility, terminal mismatch and exact existing artifacts. It verifies downloaded bytes and MIT text, retries only transient conditions and never changes a published version. The 0.3.0 hardening candidate must be published separately through main / publish / 0.3.0 after all checks pass."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ko": [
+    {
+      "slug": "platforms",
+      "title": "지원 실행 환경",
+      "kicker": "NATIVE / NODE / BROWSER",
+      "summary": "동일한 형식 구현을 운영체제별 실행 파일과 동일한 zero-dependency npm 압축 파일로 검사합니다.",
+      "sections": [
+        {
+          "id": "native",
+          "title": "네이티브 검증 구성",
+          "blocks": [
+            {
+              "kind": "table",
+              "headers": [
+                "CI 실행 환경",
+                "Rust 대상"
+              ],
+              "rows": [
+                [
+                  "Ubuntu 22.04 / 24.04",
+                  "x86_64-unknown-linux-gnu"
+                ],
+                [
+                  "Linux musl on Ubuntu 24.04",
+                  "x86_64-unknown-linux-musl"
+                ],
+                [
+                  "Windows 2022 x64",
+                  "x86_64-pc-windows-msvc"
+                ],
+                [
+                  "macOS 15 Intel",
+                  "x86_64-apple-darwin"
+                ],
+                [
+                  "macOS 14 Apple Silicon",
+                  "aarch64-apple-darwin"
+                ]
+              ]
+            },
+            {
+              "kind": "p",
+              "text": "Rust 1.85.0으로 각 대상의 CLI와 선택적 외부 개발자용 TCK를 빌드·시험·실행합니다. 네이티브 아티팩트에 MIT·소스 커밋·SHA-256을 포함합니다. 구성표만으로 성공을 주장하지 않고 실제 커밋의 CI 결과를 확인합니다."
+            }
+          ]
+        },
+        {
+          "id": "npm",
+          "title": "동일한 npm 파일을 실제 설치",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "Ubuntu 22.04·24.04, Windows x64, macOS Intel·Apple Silicon 각각에 Node.js 22와 24로 같은 압축 파일을 설치합니다. 설치된 공개 API·CLI, 공백과 한글 경로, 잘못된 입력, 실제 선형 메모리 확장 거부를 검사합니다. 브라우저 계약은 Chromium의 세 가지 주 언어 환경에서 시험합니다."
+            },
+            {
+              "kind": "code",
+              "text": "import { createTessembly } from 'tessembly';\nconst t = await createTessembly();\nconsole.log(t.checkPattern('P4:D(T)'));\nt.dispose();",
+              "language": "javascript"
+            }
+          ]
+        },
+        {
+          "id": "limits",
+          "title": "호환성과 보편적인 인증은 다릅니다",
+          "blocks": [
+            {
+              "kind": "note",
+              "text": "Ubuntu는 Linux 배포판입니다. musl 실행 파일은 Ubuntu 호스트에서 실행하므로 모든 배포판이나 Alpine을 시험했다는 뜻이 아닙니다. Linux ARM64·Windows ARM64·모든 브라우저 엔진은 이번 구성에 없습니다."
+            },
+            {
+              "kind": "p",
+              "text": "Windows CI는 Windows 10/11 데스크톱이 아닌 Server 2022입니다. macOS 서명·공증은 포함하지 않습니다. Node·Rust는 개발 도구이며 npm 설치 시 Rust·Python·네이티브 애드온·추가 다운로드를 실행하지 않습니다. Unix에서 ZIP 압축을 풀면 실행 권한 복원이 필요할 수 있습니다."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "security",
+      "title": "보안과 자원 제한",
+      "kicker": "SCOPED REVIEW / DEFENSE IN DEPTH",
+      "summary": "입력·모델의 증가를 제한하고 비정상 Wasm 상태를 격리하며, 업로드 수락과 실제 공개 검증을 구분합니다.",
+      "sections": [
+        {
+          "id": "inputs",
+          "title": "증폭되기 전에 거부",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "큰 인코딩 복사 전에 텍스트의 UTF-8 65,536바이트 한도를 확인합니다. 내장 패턴끼리 노드·관계 예산을 공유하고, U 조건은 순열 전체에 복제하기 전에 예산을 계산합니다. 파일과 HTTP 응답은 Content-Length뿐 아니라 실제 읽은 바이트도 제한합니다."
+            },
+            {
+              "kind": "table",
+              "headers": [
+                "자원",
+                "참조 한도"
+              ],
+              "rows": [
+                [
+                  "텍스트 / 모델 문자열 합계",
+                  "65,536 bytes"
+                ],
+                [
+                  "깊이 / 노드 / 조건",
+                  "48 / 4,096 / 4,096"
+                ],
+                [
+                  "유한 공급 / 홀드 큐",
+                  "256 pieces"
+                ],
+                [
+                  "패키지 Wasm 선형 메모리",
+                  "인스턴스당 32 MiB"
+                ],
+                [
+                  "배포 압축 파일 / 해제 후",
+                  "2 MiB / 8 MiB"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "wasm",
+          "title": "메모리와 실행 경계",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "포함된 Wasm에 선형 메모리 32MiB 상한을 둡니다. 예상하지 못한 트랩이 발생하면 해당 인스턴스를 재사용하지 않고 새 인스턴스를 요구합니다. 일반적인 입력 오류는 인스턴스를 오염시키지 않습니다. dispose()는 참조를 해제하지만 즉각적인 가비지 컬렉션을 보장하지 않습니다."
+            },
+            {
+              "kind": "note",
+              "text": "상한은 Node·브라우저 전체 RSS나 모든 인스턴스의 합계가 아닙니다. 대체 Wasm·파일 경로·TCK 외부 명령은 신뢰한 설정이어야 합니다. 공개 서버는 동시성·CPU·메모리·Worker/프로세스 격리가 필요하며 Promise 타임아웃만으로 동기 Wasm을 중단할 수 없습니다."
+            }
+          ]
+        },
+        {
+          "id": "tests",
+          "title": "별도 점검과 명시적인 한계",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "npm 플랫폼 검증 후 별도 보안 워크플로에서 비정상 입력·전송 회귀시험, 문서 의존성 감사, 잠금 파일의 정확한 버전별 OSV 조회를 수행합니다. 결정론적인 제한 변조 사례 10,000개를 사용하며 커버리지 기반 퍼징이나 형식 증명과는 다릅니다."
+            },
+            {
+              "kind": "p",
+              "text": "출력 파일이 이미 존재하면 거부합니다. 외부 개발자용 TCK는 입력·출력·시간·실패 미리보기의 크기를 제한하지만 자식의 후손 프로세스를 가두지는 않습니다. 별도 OS 샌드박스 없이 실행할 때는 신뢰한 명령만 사용해야 하며 데이터셋·게임 엔진을 인증하지 않습니다."
+            },
+            {
+              "kind": "note",
+              "text": "독립적인 제3자 침투시험·sanitizer/Miri 캠페인·장기간 커버리지 기반 퍼징·브라우저 엔진 감사는 수행하지 않았습니다. 남은 호스트 책임은 SECURITY.md와 docs/SECURITY_REVIEW.md에 기록합니다."
+            }
+          ]
+        },
+        {
+          "id": "release",
+          "title": "수락된 npm 업로드의 확인 복구",
+          "blocks": [
+            {
+              "kind": "p",
+              "text": "0.1.1 OIDC 업로드는 수락됐지만 이전 최종 검사가 약 38초 뒤 중단됐습니다. 레지스트리 정보와 실제 압축 파일은 원래 SHA-512와 일치했습니다. 읽기 전용 영수증으로 토큰·재업로드 없이 확인할 수 있습니다."
+            },
+            {
+              "kind": "code",
+              "text": "node scripts/release-contract.mjs recover docs/release-receipts/0.1.1.json",
+              "language": "shell"
+            },
+            {
+              "kind": "p",
+              "text": "새 확인기는 공개 반영 대기·확정적인 불일치·동일한 기존 파일을 구분합니다. 다운로드한 파일과 MIT 본문을 검증하고 일시적인 실패만 재시도하며 공개 버전을 바꾸지 않습니다. 0.3.0 보강 후보는 모든 검사 통과 후 main / publish / 0.3.0로 별도 배포해야 합니다."
+            }
+          ]
+        }
+      ]
+    }
+  ]
 };

@@ -29,10 +29,24 @@ CLI: tessembly help, tessembly check input.tsm, tessembly --lang ko doc-check in
 
 포함된 Wasm의 **인스턴스별 선형 메모리 상한은 32MiB**이며 프로세스 RSS나 동시 인스턴스 합계가 아닙니다. UTF-8 입력 65,536바이트와 내장 패턴 전체 예산을 적용합니다. 예상하지 못한 트랩 이후 인스턴스는 재사용하지 않지만 일반 입력 오류는 인스턴스를 오염시키지 않습니다. dispose는 참조 해제이지 즉각적인 GC 보장이 아닙니다. 대체 Wasm·URL·파일 경로는 신뢰한 호스트 설정이어야 합니다.
 
-[보안 정책·점검](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [실행 환경 계약](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). 0.2.0에서도 RFC3와 zero-dependency를 유지하며 모든 공격에 대한 안전을 보증하지 않습니다.
+[보안 정책·점검](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [실행 환경 계약](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). 0.3.0에서도 RFC3와 zero-dependency를 유지하며 모든 공격에 대한 안전을 보증하지 않습니다.
 
 외부 개발자용 적합성 도구는 제품 런타임이 아닙니다. 데이터셋·Clearra 등의 연결과 PC 탐색·공급 실행·리플레이는 소비자가 구현합니다. Wasm은 배포 전에 Rust 원본에서 빌드되며 설치 후 재컴파일하지 않습니다.
 
 ## 라이선스
 
 [MIT](LICENSE). Copyright (c) 2026 daejunnom. 소스·문서에 적용되며 제3자 구성요소는 각자의 라이선스를 유지합니다.
+
+
+## F1/F2
+
+```text
+P4:D(I<T&T)
+P4:D(I<T|S<Z)
+P4:D(!T)
+P4:D(T=1&S=0)
+P7:D(IN(1,3,T))
+{P7P7}:D(I[2]<T[2])
+```
+
+IN은 1-based 양 끝 포함이고 미노[n]은 범위 안의 등장 차수입니다. &/|는 논리 연산입니다. F2는 D 전용이며 모든 범위는 단락 평가 전에 검사합니다. Q1/M1/MATCH는 제공하지 않습니다. wrapper/Wasm은 같은 ABI=3 패키지를 사용하세요.

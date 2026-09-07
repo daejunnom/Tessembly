@@ -34,10 +34,24 @@ The same tarball is tested on Ubuntu 22.04/24.04, Windows x64, macOS Intel/Apple
 
 Packaged Wasm has a **32 MiB linear-memory cap per instance**, not an RSS/process/concurrency cap. Text is limited to 65,536 UTF-8 bytes; embedded patterns share model budgets. Unexpected traps invalidate the instance; normal input errors do not. dispose releases references, not a promise of immediate GC. Caller-supplied Wasm/URLs/paths are trusted configuration, never document-directed capabilities. File conversion refuses overwriting.
 
-[Security policy](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [Platform contracts](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). The 0.2.0 hardening release preserves RFC3 and zero-dependency policy. No claim of safety against every attack is made.
+[Security policy](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [Platform contracts](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). The 0.3.0 hardening release preserves RFC3 and zero-dependency policy. No claim of safety against every attack is made.
 
 Dataset/host adapters, PC search, randomizer execution and replay belong to external consumers. Optional conformance tests are developer tools, not product runtime.
 
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 daejunnom. Sources/documentation are covered; third-party components retain their licenses.
+
+
+## F1/F2
+
+```text
+P4:D(I<T&T)
+P4:D(I<T|S<Z)
+P4:D(!T)
+P4:D(T=1&S=0)
+P7:D(IN(1,3,T))
+{P7P7}:D(I[2]<T[2])
+```
+
+IN uses inclusive one-based bounds; kind[n] selects a local occurrence. &/| are logical. F2 is D-only. All ranges are checked before short circuit. Q1/M1/MATCH are not provided. Use wrapper/Wasm from the same ABI=3 package.

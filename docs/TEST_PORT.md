@@ -57,3 +57,11 @@ parser beside an unrelated application proves nothing about that app. GUI E2E ne
 app-specific widget adapter. Dataset queries, state mappings, physical legality and see-n
 optimization are external developer responsibilities. Finite test success is evidence for
 the exercised contracts, not universal correctness or certification.
+
+
+## Optional F1/F2 suite
+
+`tessembly-filter-tck --report filters.json -- YOUR_HOST test-port` checks
+filters.logic.v1, filters.count.v1, filters.window.v1, filters.occurrence.v1.
+It compares exact small supplies and explicit malformed/unsupported cases through a real
+host boundary. This is an external developer tool, not a runtime or PC certification service.

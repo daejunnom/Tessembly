@@ -70,3 +70,14 @@ test('unlocalized review route is absent',async({request})=>{
   const response=await request.get('/Tessembly/review-plan/');
   expect(response.status()).toBe(404);
 });
+
+for (const locale of ['en','ko'] as const) {
+  test(`${locale}: implemented symbols and selectors are public`,async({page})=>{
+    await page.goto(`/Tessembly/${locale}/filters/`);
+    await expect(page.locator('#logic')).toContainText('P4:D(I<T|S<Z)');
+    await expect(page.locator('#count')).toContainText('T!=0');
+    await expect(page.locator('#window')).toContainText('IN(1,3,T)');
+    await expect(page.locator('#occurrence')).toContainText('I[2]<T[2]');
+    await expect(page.locator('a[href*=review-plan]')).toHaveCount(0);
+  });
+}

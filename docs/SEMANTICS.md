@@ -1,4 +1,4 @@
-# RFC3 draft semantics and implementation scope
+# RFC3 supply semantics — implemented F1/F2
 
 Semantic profile: `tessembly.rfc3.order.v1`.
 Package version, wire version, and test protocol version are independent.
@@ -6,14 +6,30 @@ Package version, wire version, and test protocol version are independent.
 ## Compact grammar
 
 ```ebnf
-pattern   = sequence, { ";", sequence } ;
-sequence  = item, { item } ;
-item      = atom, [ ":", block, [ block ] ] ;
-block     = ("D" | "U"), "(", predicate, { ",", predicate }, ")" ;
-predicate = group, { ("<" | ">"), group } ;
-group     = piece, { piece } ;
-atom      = piece | permutation | choice | wildcard | "{", pattern, "}" ;
+pattern = sequence, { ";", sequence };
+sequence = item, { item };
+item = atom, [ ":", block, [ block ] ];
+block = ("D" | "U"), "(", or_expr, { ",", or_expr }, ")";
+or_expr = and_expr, { "|", and_expr };
+and_expr = unary, { "&", unary };
+unary = "!", unary | "(", or_expr, ")" | condition;
+condition = group, { ("<" | ">"), group }
+          | piece, count_op, integer
+          | "IN(", integer, ",", integer, ",", or_expr, { ",", or_expr }, ")";
+group = selector, { selector };
+selector = piece, [ "[", positive_integer, "]" ];
+count_op = "=" | "!=" | "<" | "<=" | ">" | ">=";
+atom = piece | permutation | choice | wildcard | "{", pattern, "}";
 ```
+
+F1/F2 are implemented in 0.3.x. [English help](HELP.en.md) / [한국어](HELP.ko.md).
+& and | borrow short-circuit logical AND/OR, not C bitwise operators. All syntax and ranges
+are checked before evaluation. A comma ANDs complete OR expressions. !I<T is rejected; use
+!(I<T). Repeated &&/||/==, assignment and group totals TS=1 are not supported.
+Counts are per-kind integers 0..256. IN uses inclusive one-based windows without resampling.
+kind[n] selects the nth local occurrence (1..256), not a token identity. Windows and ordinals
+n>1 are D-only; F1 is available in D and U. Invalid ranges are errors, not clipped windows.
+
 
 Pieces are standard I/O/T/S/Z/J/L. Body lowercase letters are accepted; local options and
 condition groups are uppercase. Whitespace and body commas are separators; predicate commas
@@ -45,7 +61,8 @@ No hold/placement legality is inferred from a U relationship match.
 ## UNSAT
 
 The relation crate finds strict cycles in each domain/scope separately. A cycle proves
-that branch impossible. A union remains potentially live if any branch survives.
+that positive conjunction impossible. OR requires every branch to be impossible. NOT and
+independent windows do not leak edges into the outer graph. A union remains potentially live if any branch survives.
 D and U, sibling scopes, and nested distinct scopes are never merged into one graph.
 Absence of a local cycle is NOT_CHECKED, not SAT. A U-only cycle leaves the raw supply
 language intact. CLI `--deny-unsat` is a build policy, not a syntax redefinition.
@@ -78,4 +95,6 @@ Normal RFC3 entry points reject RFC2 headers. Bare compact strings need an exter
 there is no reliable content-only version inference. See [migration details](COMPARATOR_MIGRATION.md).
 
 Clearra-compatible inputs and internal structural similarity are the motivation for this syntax.
-Logical-filter and richer QB/OQB extensions remain [design only](plans/FILTERS_QB_OQB.en.md), awaiting owner GO.
+F1/F2 capabilities are filters.logic.v1, filters.count.v1, filters.window.v1, and
+filters.occurrence.v1. Q1/M1/MATCH are not added. Setup goals, metrics and dataset policy
+contracts remain outside supply. Existing reference/select records remain compatibility data.

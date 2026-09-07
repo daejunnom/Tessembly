@@ -21,7 +21,8 @@ Node tags:
 Common suffix: ULEB source span start/end, flags byte (bit0 D, bit1 U; other bits invalid),
 then flagged D/U blocks in that order. Block = ULEB predicate count then predicates.
 Predicate tag0: presence, byte piece ID. Tag1: Before, byte `earlier | (later << 3)` with top
-bits zero. Each predicate ends with ULEB source span start/end. Self comparisons are retained.
+bits zero. Tag2: ULEB byte length followed by TSFL v1 filter bytes.
+Each predicate ends with ULEB source span start/end. Self comparisons are retained.
 
 TLV: ULEB u32 ID, flags byte 0 optional / 1 critical, ULEB byte length, opaque bytes.
 IDs cannot repeat. This draft understands no mandatory extension, so critical always returns
@@ -33,3 +34,14 @@ pairs do not bind to CTK3 palette values. Permutations are stored as pools, neve
 No cross-language structure-memory copying or unsafe pointer decoding is used.
 
 RFC2 byte 2 is accepted only by explicit migrate-rfc2 operations. Before/Present payload direction is never flipped. See [migration](COMPARATOR_MIGRATION.md).
+
+
+## Mandatory F1/F2 filter payload
+
+TSFL + byte 1 contains one structural filter. Tags: 0=Present(selector),
+1=Before(earlier,later), 2=Count(ID,operator-byte,count), 3=All(children), 4=Any(children),
+5=Not(child), 6=In(start,end,child). Selectors store UTF-8 ID plus one-based ordinal.
+Lengths/counts use canonical ULEB; count operators 0..5 are =, !=, <, <=, >, >=.
+Child lists are nonempty/bounded, windows are inclusive/one-based. Unknown required tags fail.
+TSDC shares the payload for named IDs. Wire=1 and semantic=3 remain; old readers must reject
+new tags, never drop filters. Current npm/Wasm assets require ABI=3.
