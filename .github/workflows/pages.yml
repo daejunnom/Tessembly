@@ -2,7 +2,7 @@ name: Documentation Pages
 on:
   push:
     branches: [main]
-    paths: ['apps/docs/**', '.github/workflows/pages.yml']
+    paths: ['apps/docs/**', 'docs/HELP.*.md', 'scripts/*documentation*', 'scripts/sync-language-reference.mjs', 'crates/**', 'Cargo.toml', 'Cargo.lock', 'packages/npm/package.json', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
         working-directory: apps/docs
         env:
           SOURCE_SHA: ${{ github.sha }}
-        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA,site:"Tessembly",semantic_profile:"tessembly.rfc3.order.v1",languages:["en","ko"]})+"\n");'
+        run: node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("../../packages/npm/package.json","utf8")); fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA,site:"Tessembly",package_version:p.version,semantic_profile:"tessembly.rfc3.order.v1",languages:["en","ko"]})+"\n");'
       - name: Verify complete translations and zero Svelte warnings
         working-directory: apps/docs
         run: |
@@ -41,6 +41,12 @@ jobs:
           for path in review-plan en/review-plan ko/review-plan; do
             test ! -e "build/$path"
           done
+      - name: Check published examples against the actual native implementation
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          cargo +1.85.0 build --locked -p tessembly-cli
+          node scripts/sync-language-reference.mjs --check
+          node scripts/check-documentation.mjs target/debug/tessembly
       - name: Browser prerequisites
         working-directory: apps/docs
         run: npx playwright install --with-deps chromium
@@ -87,7 +93,7 @@ jobs:
           done
           test "$ready" = 1
           for lang in en ko; do
-            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ migration/ scope/; do
+            for path in '' quickstart/ compact/ filters/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ migration/ scope/; do
               curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${lang}/${path}" -o /tmp/page.html
               grep -q "lang=\"${lang}\"" /tmp/page.html
               grep -q 'Tessembly' /tmp/page.html
