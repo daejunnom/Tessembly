@@ -2,7 +2,7 @@ name: Rust platform contracts
 on:
   push:
     branches: [main]
-    paths: ['crates/**', 'examples/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'docs/**', '.github/workflows/ci.yml']
+    paths: ['crates/**', 'tests/fixtures/**', 'examples/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'docs/**', '.github/workflows/ci.yml']
   workflow_dispatch:
   workflow_call:
 permissions:
@@ -51,7 +51,7 @@ jobs:
           BIN="target/$TARGET/debug"
           "$BIN/tessembly-tck$SUFFIX" --report conformance-report.json -- "$BIN/tessembly$SUFFIX" test-port
           "$BIN/tessembly-document-tck$SUFFIX" --report document-conformance-report.json -- "$BIN/tessembly$SUFFIX" doc-port
-          "$BIN/tessembly$SUFFIX" lint --profile rfc2 --deny-unsat examples/*.tsm
+          "$BIN/tessembly$SUFFIX" lint --profile rfc3 --deny-unsat examples/*.tsm
           "$BIN/tessembly$SUFFIX" doc-check --deny-unsat examples/advanced/*.tsmd
       - name: Build target-specific native artifacts
         env:

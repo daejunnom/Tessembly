@@ -31,7 +31,7 @@ jobs:
         working-directory: apps/docs
         env:
           SOURCE_SHA: ${{ github.sha }}
-        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA,site:"Tessembly",semantic_profile:"tessembly.rfc2.precedence.v1",languages:["en","ko"]})+"\n");'
+        run: node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync("static/build-info.json", JSON.stringify({source_commit:process.env.SOURCE_SHA,site:"Tessembly",semantic_profile:"tessembly.rfc3.order.v1",languages:["en","ko"]})+"\n");'
       - name: Verify complete translations and zero Svelte warnings
         working-directory: apps/docs
         run: |
@@ -84,7 +84,7 @@ jobs:
           done
           test "$ready" = 1
           for lang in en ko; do
-            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ scope/; do
+            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ migration/ review-plan/ scope/; do
               curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${lang}/${path}" -o /tmp/page.html
               grep -q "lang=\"${lang}\"" /tmp/page.html
               grep -q 'Tessembly' /tmp/page.html

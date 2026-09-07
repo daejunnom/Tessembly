@@ -2,7 +2,7 @@ name: npm package contracts
 on:
   push:
     branches: [main]
-    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'Cargo.toml', 'LICENSE', 'scripts/**', '.github/workflows/security.yml', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml', '.github/workflows/npm-release.yml']
+    paths: ['packages/npm/**', 'bindings/wasm/**', 'crates/**', 'tests/fixtures/**', 'Cargo.toml', 'LICENSE', 'scripts/**', '.github/workflows/security.yml', 'apps/docs/tests-npm/**', '.github/workflows/npm.yml', '.github/workflows/npm-release.yml']
   workflow_dispatch:
   workflow_call:
 permissions:

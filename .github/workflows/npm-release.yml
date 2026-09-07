@@ -12,7 +12,7 @@ on:
       expected_version:
         description: Must equal the intentionally committed npm package version. Never overwrites an existing version.
         type: string
-        default: '0.1.2'
+        default: '0.2.0'
         required: true
 permissions:
   contents: read
