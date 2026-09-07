@@ -51,6 +51,7 @@ jobs:
           BIN="target/$TARGET/debug"
           "$BIN/tessembly-tck$SUFFIX" --report conformance-report.json -- "$BIN/tessembly$SUFFIX" test-port
           "$BIN/tessembly-document-tck$SUFFIX" --report document-conformance-report.json -- "$BIN/tessembly$SUFFIX" doc-port
+          "$BIN/tessembly-filter-tck$SUFFIX" --report filter-conformance-report.json -- "$BIN/tessembly$SUFFIX" test-port
           "$BIN/tessembly$SUFFIX" lint --profile rfc3 --deny-unsat examples/*.tsm
           "$BIN/tessembly$SUFFIX" doc-check --deny-unsat examples/advanced/*.tsmd
       - name: Build target-specific native artifacts
@@ -59,7 +60,7 @@ jobs:
         run: |
           cargo +1.85.0 build --locked --workspace --target "$TARGET" --release
           mkdir -p native-artifact
-          cp "target/$TARGET/release/tessembly$SUFFIX" "target/$TARGET/release/tessembly-tck$SUFFIX" "target/$TARGET/release/tessembly-document-tck$SUFFIX" native-artifact/
+          cp "target/$TARGET/release/tessembly$SUFFIX" "target/$TARGET/release/tessembly-tck$SUFFIX" "target/$TARGET/release/tessembly-document-tck$SUFFIX" "target/$TARGET/release/tessembly-filter-tck$SUFFIX" native-artifact/
           cp LICENSE native-artifact/
           node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";const files=fs.readdirSync("native-artifact");fs.writeFileSync("native-artifact/build-info.json",JSON.stringify({source_commit:process.env.GITHUB_SHA,target:process.env.TARGET,runner:process.env.RUNNER_OS,files:files.map(file=>({file,sha256:crypto.createHash("sha256").update(fs.readFileSync("native-artifact/"+file)).digest("hex")}))},null,2));'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f

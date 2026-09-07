@@ -45,3 +45,14 @@ test('all branches are validated before short circuit; source counts remain boun
   assert.throws(()=>t.normalizeDocument(d));
  } finally {t.dispose();}
 });
+test('truncated structural filters and unsupported usage selectors fail without poisoning the instance',async()=>{
+ const t=await createTessembly();
+ try {
+  const input='P7:D(IN(1,3,T=1)|!(I<T))';
+  const bytes=t.encodePattern(input);
+  for(let i=0;i<bytes.length;i++) assert.throws(()=>t.decodePattern(bytes.subarray(0,i)));
+  assert.throws(()=>t.normalizePattern('P4:U(T[2])'),{code:'UNSUPPORTED_USE_SELECTOR'});
+  assert.equal(t.decodePattern(bytes),t.normalizePattern(input));
+  assert.equal(t.normalizePattern('IT'),'IT');
+ } finally {t.dispose();}
+});
