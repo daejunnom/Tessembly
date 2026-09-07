@@ -20,7 +20,8 @@ const allowed=[
  'crates/tessembly-core/src/filter.rs','crates/tessembly-core/src/lib.rs','crates/tessembly-core/src/model.rs',
  'crates/tessembly-document/src/lib.rs','crates/tessembly-document/src/parser.rs','crates/tessembly-document/src/render.rs','crates/tessembly-document/src/schema.rs','crates/tessembly-document/src/wire.rs',
  'crates/tessembly-relations/src/lib.rs','crates/tessembly-text/src/filter.rs','crates/tessembly-text/src/lib.rs','crates/tessembly-text/src/parser.rs','crates/tessembly-text/src/print.rs',
- 'crates/tessembly-text/tests/order_profile.rs','crates/tessembly-text/tests/parser.rs','packages/npm/package.json','packages/npm/runtime.js','packages/npm/tests/filters.test.mjs'
+ 'crates/tessembly-text/tests/order_profile.rs','crates/tessembly-text/tests/parser.rs','packages/npm/package.json','packages/npm/runtime.js','packages/npm/tests/filters.test.mjs',
+ 'packages/npm/tests/security.test.mjs'
 ];
 function git(...args){return execFileSync('git',args,{encoding:'utf8',maxBuffer:2_000_000});}
 assert.equal(process.env.GITHUB_REPOSITORY,'daejunnom/Tessembly');
@@ -39,8 +40,13 @@ if(process.argv[2]==='stage'){
  const data=Buffer.concat(parts);
  assert.equal(crypto.createHash('sha256').update(data).digest('hex'),'b4ea01f28e44dd05172eaca7a435e3c56ae9d8493e5e774e616916e4e06a45ea');
  const paths=[...data.toString('utf8').matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)].map(m=>{assert.equal(m[1],m[2]);return m[1];});
- assert.deepEqual(paths,allowed);
+ assert.deepEqual(paths,allowed.slice(0,-1));
  const file=path.join(process.env.RUNNER_TEMP,'f1f2-reviewed.patch');fs.writeFileSync(file,data,{flag:'wx'});
- git('apply','--check',file);git('apply',file);git('add','-N','--',...allowed);
+ git('apply','--check',file);git('apply',file);
+ // Keep the adversarial test module on ABI 3 so it exercises trapping, not version rejection.
+ const fixture='packages/npm/tests/security.test.mjs';const old=fs.readFileSync(fixture,'utf8');
+ const token='i===0?2:i===1?8:0';assert.equal(old.split(token).length,2);
+ fs.writeFileSync(fixture,old.replace(token,'i===0?3:i===1?8:0'));
+ git('add','-N','--',...allowed);
  console.log('Applied approved F1/F2 supply filters. No Q1/M1 implementation or documentation change.');
 }
