@@ -4,7 +4,7 @@ use crate::{Call, Document, NamedPredicate, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use tessembly_core::budget::ModelBudget;
 use tessembly_core::{Error, Result, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES};
-const MAGIC: &[u8; 6] = b"TSDC\x01\x02";
+const MAGIC: &[u8; 6] = b"TSDC\x01\x03";
 const LIMIT: usize = 1_048_576;
 fn put(out: &mut Vec<u8>, bytes: &[u8]) -> Result<()> {
     if out.len().saturating_add(bytes.len()) > LIMIT {
@@ -130,6 +130,7 @@ struct Reader<'a, 'b> {
     b: &'a [u8],
     at: usize,
     budget: &'b mut ModelBudget,
+    legacy: bool,
 }
 impl<'a> Reader<'a, '_> {
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
@@ -216,7 +217,11 @@ impl<'a> Reader<'a, '_> {
             }),
             7 => {
                 let encoded = self.bytes()?;
-                let doc = tessembly_codec::decode_with_budget(encoded, self.budget)?;
+                let doc = if self.legacy {
+                    tessembly_codec::decode_rfc2_with_budget(encoded, self.budget)?
+                } else {
+                    tessembly_codec::decode_with_budget(encoded, self.budget)?
+                };
                 if !doc.optional_extensions.is_empty() {
                     return Err(Error::new("NESTED_METADATA_NOT_SUPPORTED"));
                 }
@@ -251,16 +256,31 @@ impl<'a> Reader<'a, '_> {
     }
 }
 pub fn decode(bytes: &[u8]) -> Result<Document> {
+    decode_profile(bytes, false)
+}
+
+/// Explicit RFC2 structural migration, including all nested patterns.
+pub fn migrate_rfc2(bytes: &[u8]) -> Result<Vec<u8>> {
+    let doc = decode_profile(bytes, true)?;
+    if !doc.optional_extensions.is_empty() {
+        return Err(Error::new("MIGRATION_REQUIRES_METADATA_HANDLER"));
+    }
+    encode(&doc)
+}
+
+fn decode_profile(bytes: &[u8], legacy: bool) -> Result<Document> {
     if bytes.len() > LIMIT {
         return Err(Error::new("BINARY_LIMIT"));
     }
-    if bytes.get(..6) != Some(MAGIC.as_slice()) {
+    let magic: &[u8; 6] = if legacy { b"TSDC\x01\x02" } else { MAGIC };
+    if bytes.get(..6) != Some(magic.as_slice()) {
         return Err(Error::new("UNSUPPORTED_DOCUMENT_WIRE"));
     }
     let mut r = Reader {
         b: bytes,
         at: 6,
         budget: &mut ModelBudget::default(),
+        legacy,
     };
     let count = r.count(65)?;
     let mut ids = BTreeSet::new();
@@ -284,6 +304,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document> {
                 b,
                 at: 0,
                 budget: r.budget,
+                legacy,
             };
             let doc = Document {
                 config: b.mapping(0)?,

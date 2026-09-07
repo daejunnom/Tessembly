@@ -9,7 +9,7 @@ export const tools = [{
       { kind: 'p', text: '위 명령은 제공된 참조 CLI를 검사하는 예입니다. 실제 통합 검사에서는 -- 뒤를 자신의 실행 파일과 인수로 교체합니다. Windows에서는 실행 파일에 .exe를 붙입니다. JSON 보고서는 시험 이름·통과 여부·실패 응답과 의미/전송 버전을 기록합니다.' }
     ] },
     { id: 'connect', title: '고급 포트 요청', blocks: [
-      { kind: 'code', language: 'json', text: '{"id":1,"protocol":"tessembly.document-test-port.v1","profile":"tessembly.rfc2.precedence.v1","op":"validate","text":"tessembly \\\"tessembly.rfc2.precedence.v1\\\"; supply(\\\"P4\\\"); draw(I<TS);"}' },
+      { kind: 'code', language: 'json', text: '{"id":1,"protocol":"tessembly.document-test-port.v1","profile":"tessembly.rfc3.order.v1","op":"validate","text":"tessembly \\\"tessembly.rfc3.order.v1\\\"; supply(\\\"P4\\\"); draw(I>TS);"}' },
       { kind: 'p', text: '각 줄에 JSON 요청 하나를 보내고 JSON 응답 하나를 받습니다. id와 profile을 그대로 결속합니다. validate는 구문·선언만 검사하고 실행 성공을 주장하지 않습니다. roundtrip, project, decode, hold, resolve 작업은 DOCUMENT.md에 정의되어 있습니다.' },
       { kind: 'note', text: '고급 포트는 표현과 경계를 시험합니다. 외부 DB의 실제 질의, 공개 정보 준수, 회전/배치 합법성은 소비자의 별도 통합 시험이 필요합니다. 참조 CLI를 우회 호출하는 포트로는 앱 본체를 검증할 수 없습니다.' }
     ] },

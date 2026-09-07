@@ -9,8 +9,8 @@ const dir=resolve(process.argv[2]);const p=JSON.parse(readFileSync(join(dir,'pac
 for(const k of ['dependencies','peerDependencies','optionalDependencies','bundledDependencies','devDependencies'])assert.equal(Object.keys(p[k]??{}).length,0);
 assert.equal(p.license,'MIT');
 const {createTessembly}=await import(pathToFileURL(join(dir,'node.js')));const t=await createTessembly({language:'ko'});
-assert.equal(t.checkPattern('P7:D(I<T<I)').draw,'UNSAT');
-assert.equal(t.normalizePattern('P4:D(I<T>S)'),t.normalizePattern('P4:D(T>IS)'));
+assert.equal(t.checkPattern('P7:D(I>T>I)').draw,'UNSAT');
+assert.equal(t.normalizePattern('P4:D(I>T<S)'),t.normalizePattern('P4:D(T<IS)'));
 assert.equal(t.decodePattern(t.encodePattern('P4:D(T)')),t.normalizePattern('P4:D(T)'));
 assert.throws(()=>t.normalizePattern('I'.repeat(70000)),{code:'INPUT_LIMIT'});t.dispose();
 const root=mkdtempSync(join(tmpdir(),'tessembly-경로 & '));

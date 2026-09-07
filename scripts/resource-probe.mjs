@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 const dir=resolve(process.argv[2]??'packages/npm');
 const bytes=readFileSync(resolve(dir,'tessembly.wasm'));
 const {instance}=await WebAssembly.instantiate(bytes,{});const x=instance.exports;
-const enc=new TextEncoder();const input=enc.encode('P4:D(I<TS)');
+const enc=new TextEncoder();const input=enc.encode('P4:D(I>TS)');
 const initial=x.memory.buffer.byteLength;const start=performance.now();let peak=initial;
 for(let i=0;i<1000;i++){
  const p=x.ts_reserve_input(input.length);new Uint8Array(x.memory.buffer,p,input.length).set(input);

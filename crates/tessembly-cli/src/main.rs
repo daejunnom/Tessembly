@@ -2,6 +2,7 @@
 mod advanced;
 mod expand;
 mod locale;
+mod migrate;
 mod port;
 use serde_json::json;
 use std::{
@@ -92,6 +93,9 @@ fn run(mut args: Vec<String>, language: locale::Language) -> Result<u8> {
         return Ok(0);
     }
     let command = args.remove(0);
+    if command.contains("migrate") {
+        return migrate::run(&command, args);
+    }
     if command.starts_with("doc-") {
         return advanced::run(&command, args);
     }
@@ -140,7 +144,7 @@ fn run(mut args: Vec<String>, language: locale::Language) -> Result<u8> {
     let p = profile
         .as_deref()
         .ok_or_else(|| Error::new("PROFILE_REQUIRED"))?;
-    if p != "rfc2" && p != PROFILE {
+    if p != "rfc3" && p != PROFILE {
         return Err(Error::new("UNSUPPORTED_PROFILE"));
     }
     if files.is_empty() || (command == "encode" && files.len() != 2) {

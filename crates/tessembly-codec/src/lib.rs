@@ -6,7 +6,7 @@ use tessembly_core::{
     MAX_INPUT, MAX_NODES, MAX_PREDICATES,
 };
 
-const MAGIC: &[u8; 6] = b"TSMB\x01\x02"; // wire 1, explicit RFC2 semantics
+const MAGIC: &[u8; 6] = b"TSMB\x01\x03"; // wire 1, explicit RFC3 order semantics
 const MAX_BYTES: usize = 1_048_576;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Extension {
@@ -224,10 +224,28 @@ pub fn decode(bytes: &[u8]) -> Result<Document> {
 }
 /// Structural decoding with a shared aggregate budget for embedded patterns.
 pub fn decode_with_budget(bytes: &[u8], budget: &mut ModelBudget) -> Result<Document> {
+    decode_profile(bytes, budget, MAGIC)
+}
+
+/// Legacy decoding only for an explicitly requested RFC2 migration.
+pub fn decode_rfc2_with_budget(bytes: &[u8], budget: &mut ModelBudget) -> Result<Document> {
+    decode_profile(bytes, budget, b"TSMB\x01\x02")
+}
+
+/// Re-encode structural relations under RFC3. Unknown metadata needs its own migration.
+pub fn migrate_rfc2(bytes: &[u8]) -> Result<Vec<u8>> {
+    let doc = decode_rfc2_with_budget(bytes, &mut ModelBudget::default())?;
+    if !doc.optional_extensions.is_empty() {
+        return Err(Error::new("MIGRATION_REQUIRES_METADATA_HANDLER"));
+    }
+    encode(&doc)
+}
+
+fn decode_profile(bytes: &[u8], budget: &mut ModelBudget, magic: &[u8; 6]) -> Result<Document> {
     if bytes.len() > MAX_BYTES + 16 {
         return Err(Error::new("BINARY_LIMIT"));
     }
-    if bytes.get(..6) != Some(MAGIC.as_slice()) {
+    if bytes.get(..6) != Some(magic.as_slice()) {
         return Err(Error::new("UNSUPPORTED_WIRE_OR_PROFILE"));
     }
     let mut r = Reader {

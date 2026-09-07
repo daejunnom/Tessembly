@@ -11,7 +11,7 @@ fn actual_binary_port_preserves_request_and_profile() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let request = json!({"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc2.precedence.v1","id":42,"op":"enumerate_D","text":"P4:D(I<TS)"});
+    let request = json!({"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc3.order.v1","id":42,"op":"enumerate_D","text":"P4:D(I>TS)"});
     writeln!(child.stdin.take().unwrap(), "{request}").unwrap();
     let out = child.wait_with_output().unwrap();
     assert!(out.status.success());
@@ -27,7 +27,7 @@ fn help_has_version_direction_and_presence() {
         .output()
         .unwrap();
     let text = String::from_utf8(out.stdout).unwrap();
-    for word in ["A>B", "최초", "RFC2", "존재", "가방"] {
+    for word in ["A<B", "최초", "RFC3", "존재", "가방"] {
         assert!(text.contains(word));
     }
 }

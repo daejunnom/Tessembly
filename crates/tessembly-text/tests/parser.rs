@@ -2,8 +2,8 @@ use tessembly_core::{NodeKind, Piece, PredicateKind, PROFILE};
 use tessembly_text::{format, parse};
 #[test]
 fn group_chain_normalizes_to_same_edges() {
-    let a = parse("P4:D(I<T>S)", PROFILE).unwrap();
-    let b = parse("P4:D(T>IS)", PROFILE).unwrap();
+    let a = parse("P4:D(I>T<S)", PROFILE).unwrap();
+    let b = parse("P4:D(T<IS)", PROFILE).unwrap();
     let kinds = |n: &tessembly_core::Node| {
         n.constraints
             .draw
@@ -24,16 +24,16 @@ fn group_chain_normalizes_to_same_edges() {
 }
 #[test]
 fn presence_and_comparator_are_distinct() {
-    let n = parse("P4:D(TS,I<T,T)", PROFILE).unwrap();
+    let n = parse("P4:D(TS,I>T,T)", PROFILE).unwrap();
     assert!(matches!(
         n.constraints.draw.as_ref().unwrap()[0].kind,
         PredicateKind::Present(_)
     ));
-    assert_eq!(format(&n).unwrap(), "P4:D(T,S,T>I,T)");
+    assert_eq!(format(&n).unwrap(), "P4:D(T,S,T<I,T)");
 }
 #[test]
 fn original_offsets_and_local_attachment() {
-    let n = parse(" P7:D(I<T)P4", PROFILE).unwrap();
+    let n = parse(" P7:D(I>T)P4", PROFILE).unwrap();
     let NodeKind::Concat(c) = &n.kind else {
         panic!("expected concat");
     };
@@ -46,7 +46,7 @@ fn original_offsets_and_local_attachment() {
 }
 #[test]
 fn strict_version_and_new_grammar() {
-    assert!(parse("P4:D(I<T)", "tessembly.rfc1.first-arrival.v1").is_err());
+    assert!(parse("P4:D(I>T)", "tessembly.rfc1.first-arrival.v1").is_err());
     for text in [
         "P4:D(HAS(T))",
         "P4:D?(T)",
@@ -63,7 +63,7 @@ fn strict_version_and_new_grammar() {
 #[test]
 fn groups_choices_and_legacy_case() {
     for text in [
-        "{T[^T]!}:D(I>O)P4",
+        "{T[^T]!}:D(I<O)P4",
         "IOT;ITO",
         "i,o,t",
         "[TTI]!",

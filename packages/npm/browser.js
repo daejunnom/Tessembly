@@ -1,7 +1,7 @@
 import { readResponse, MAX_WASM_BYTES } from './limits.js';
 import { fromBytes } from './runtime.js';
 import { detectLanguage, TessemblyError } from './locale.js';
-export { PROFILE, DOCUMENT_SCHEMA, TessemblyError } from './runtime.js';
+export { PROFILE, LEGACY_PROFILE, DOCUMENT_SCHEMA, TessemblyError } from './runtime.js';
 export { resolveLanguage, detectLanguage, errorMessage } from './locale.js';
 export async function createTessembly(options = {}) {
   const language = detectLanguage({ language: options.language,

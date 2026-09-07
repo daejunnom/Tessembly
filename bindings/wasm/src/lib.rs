@@ -12,6 +12,12 @@ struct Buffers {
 thread_local! { static BUFFERS: RefCell<Buffers> = RefCell::new(Buffers::default()); }
 
 fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
+    if op == 11 {
+        return tessembly_codec::migrate_rfc2(input);
+    }
+    if op == 12 {
+        return tessembly_document::wire::migrate_rfc2(input);
+    }
     if matches!(op, 4 | 8) {
         return if op == 4 {
             let doc = tessembly_codec::decode(input)?;
@@ -26,6 +32,12 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
         };
     }
     let text = std::str::from_utf8(input).map_err(|_| Error::new("INVALID_UTF8"))?;
+    if op == 9 {
+        return Ok(tessembly_text::migrate_rfc2(text)?.into_bytes());
+    }
+    if op == 10 {
+        return Ok(tessembly_document::migrate_rfc2(text)?.into_bytes());
+    }
     if (1..=3).contains(&op) {
         let root = tessembly_text::parse(text, PROFILE)?;
         return match op {
@@ -68,7 +80,7 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
 // Rust pointer dereferences. The library has no unsafe blocks.
 #[no_mangle]
 pub extern "C" fn ts_abi_version() -> u32 {
-    1
+    2
 }
 #[no_mangle]
 pub extern "C" fn ts_reserve_input(len: u32) -> u32 {
@@ -130,16 +142,16 @@ mod tests {
     use super::*;
     #[test]
     fn codec_and_semantic_domains() {
-        let bytes = dispatch(3, b"P4:D(I<TS)").unwrap();
+        let bytes = dispatch(3, b"P4:D(I>TS)").unwrap();
         assert!(!dispatch(4, &bytes).unwrap().is_empty());
-        let report = dispatch(2, b"P7:D(I<T<I)").unwrap();
+        let report = dispatch(2, b"P7:D(I>T>I)").unwrap();
         assert_eq!(&report[..2], &[1, 1]);
-        let usage = dispatch(2, b"P7:U(I<T<I)").unwrap();
+        let usage = dispatch(2, b"P7:U(I>T>I)").unwrap();
         assert_eq!(&usage[..2], &[0, 1]);
     }
     #[test]
     fn document_roundtrip_and_errors() {
-        let source = b"tessembly \"tessembly.rfc2.precedence.v1\"; supply(\"P4\"); draw(I<TS);";
+        let source = b"tessembly \"tessembly.rfc3.order.v1\"; supply(\"P4\"); draw(I>TS);";
         let bytes = dispatch(7, source).unwrap();
         assert_eq!(dispatch(8, &bytes).unwrap(), dispatch(5, source).unwrap());
         assert!(dispatch(1, b"P4:D(HAS(T))").is_err());

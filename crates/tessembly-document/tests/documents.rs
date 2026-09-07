@@ -5,7 +5,7 @@ fn doc(body: &str) -> String {
 }
 #[test]
 fn advanced_and_compact_relations_agree() {
-    let d = parse(&doc("supply(\"P4\"); draw(I<TS, I); use(T>IS);")).unwrap();
+    let d = parse(&doc("supply(\"P4\"); draw(I>TS, I); use(T<IS);")).unwrap();
     assert!(d.draw.contains(&NamedPredicate::Present("I".into())));
     assert!(d
         .draw
@@ -23,14 +23,14 @@ fn advanced_and_compact_relations_agree() {
 }
 #[test]
 fn formatting_is_idempotent() {
-    let d = parse(&doc("// a comment\nsupply(\"{P4}:D(T)\"); draw(I<T>S);")).unwrap();
+    let d = parse(&doc("// a comment\nsupply(\"{P4}:D(T)\"); draw(I>T<S);")).unwrap();
     let text = d.to_text().unwrap();
     assert_eq!(parse(&text).unwrap().to_text().unwrap(), text);
 }
 #[test]
 fn group_and_mixed_chain_are_equivalent() {
-    let a = parse(&doc("supply(\"P4\"); draw(I<T>S);")).unwrap();
-    let b = parse(&doc("supply(\"P4\"); draw(T>IS);")).unwrap();
+    let a = parse(&doc("supply(\"P4\"); draw(I>T<S);")).unwrap();
+    let b = parse(&doc("supply(\"P4\"); draw(T<IS);")).unwrap();
     assert_eq!(a.draw, b.draw);
 }
 #[test]
@@ -196,7 +196,7 @@ fn references_and_decisions_are_descriptions_only() {
 #[test]
 fn binary_roundtrip_all_truncations_and_critical_sections() {
     let mut d = parse(&doc(
-        "config { see=view(next=5);hold=slot(initial=empty); } supply(\"P4:D(I<TS)\");",
+        "config { see=view(next=5);hold=slot(initial=empty); } supply(\"P4:D(I>TS)\");",
     ))
     .unwrap();
     d.optional_extensions.push(tessembly_codec::Extension {

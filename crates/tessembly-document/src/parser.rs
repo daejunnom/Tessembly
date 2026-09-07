@@ -1,8 +1,19 @@
 use crate::{Call, Document, NamedPredicate, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use tessembly_core::{Error, Result, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES, PROFILE};
+use tessembly_core::{
+    Error, Result, LEGACY_PROFILE, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES, PROFILE,
+};
 
 pub fn parse(text: &str) -> Result<Document> {
+    parse_profile(text, PROFILE)
+}
+
+/// Explicit legacy parsing; output preserves relationships rather than source spelling.
+pub fn migrate_rfc2(text: &str) -> Result<String> {
+    parse_profile(text, LEGACY_PROFILE)?.to_text()
+}
+
+fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
     if text.len() > MAX_INPUT {
         return Err(Error::new("INPUT_LIMIT"));
     }
@@ -10,11 +21,12 @@ pub fn parse(text: &str) -> Result<Document> {
         text,
         at: 0,
         nodes: 0,
+        profile,
     };
     if p.ident()? != "tessembly" {
         return Err(p.error("PROFILE_REQUIRED"));
     }
-    if p.string()? != PROFILE {
+    if p.string()? != profile {
         return Err(p.error("UNSUPPORTED_PROFILE"));
     }
     p.expect(b';')?;
@@ -53,6 +65,7 @@ pub fn parse(text: &str) -> Result<Document> {
                         .into_iter()
                         .next()
                         .ok_or_else(|| p.error("SUPPLY_REQUIRED"))?,
+                    profile,
                 )?);
             }
             "draw" | "use" => {
@@ -80,30 +93,30 @@ pub fn parse(text: &str) -> Result<Document> {
     doc.validate()?;
     Ok(doc)
 }
-fn normalize_source(value: Value) -> Result<Value> {
+fn normalize_source(value: Value, profile: &str) -> Result<Value> {
     match value {
         Value::Text(s) => Ok(Value::Pattern(Box::new(tessembly_text::parse(
-            &s, PROFILE,
+            &s, profile,
         )?))),
         Value::Call(mut c) if c.name == "pattern" => {
             c.keys(&[])?;
             c.arity(1)?;
             let text = c.args.remove(0).text()?.to_owned();
             Ok(Value::Pattern(Box::new(tessembly_text::parse(
-                &text, PROFILE,
+                &text, profile,
             )?)))
         }
         Value::Call(mut c) => {
             match c.name.as_str() {
                 "take" | "repeat" if c.args.len() == 2 => {
                     let child = c.args.pop().ok_or_else(|| Error::new("ARGUMENT_COUNT"))?;
-                    c.args.push(normalize_source(child)?);
+                    c.args.push(normalize_source(child, profile)?);
                 }
                 "concat" | "either" => {
                     c.args = c
                         .args
                         .into_iter()
-                        .map(normalize_source)
+                        .map(|v| normalize_source(v, profile))
                         .collect::<Result<_>>()?;
                 }
                 _ => {}
@@ -153,6 +166,7 @@ struct Parser<'a> {
     text: &'a str,
     at: usize,
     nodes: usize,
+    profile: &'static str,
 }
 impl Parser<'_> {
     fn error(&self, code: &'static str) -> Error {
@@ -302,7 +316,12 @@ impl Parser<'_> {
                         }
                         for a in left.chars() {
                             for b in right.chars() {
-                                let (earlier, later) = if op == b'>' { (a, b) } else { (b, a) };
+                                let (earlier, later) =
+                                    if (op == b'<') != (self.profile == LEGACY_PROFILE) {
+                                        (a, b)
+                                    } else {
+                                        (b, a)
+                                    };
                                 all.push(Value::Call(Call::new(
                                     "before",
                                     vec![

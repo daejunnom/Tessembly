@@ -1,0 +1,1 @@
+tessembly "tessembly.rfc2.precedence.v1"; config {rule=seven_bag();start=boundary();see=view(next=5,active=true,hold=true,memory=history);hold=slot(initial=empty);} supply(concat(pattern("P4:D(I<TS)"), "P2:U(T>IS)")); draw(I<T>S,T);

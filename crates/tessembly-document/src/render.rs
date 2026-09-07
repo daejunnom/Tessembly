@@ -71,7 +71,7 @@ pub(crate) fn requirements(doc: &Document) -> Result<Vec<String>> {
                 }
             }
             Value::Pattern(n) => {
-                out.insert("pattern.rfc2".into());
+                out.insert("pattern.rfc3".into());
                 if n.contains_use() {
                     out.insert("relations.use".into());
                 }

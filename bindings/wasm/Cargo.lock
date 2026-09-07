@@ -4,29 +4,29 @@ version = 4
 
 [[package]]
 name = "tessembly-codec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = ["tessembly-core"]
 
 [[package]]
 name = "tessembly-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "tessembly-document"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = ["tessembly-codec", "tessembly-core", "tessembly-text"]
 
 [[package]]
 name = "tessembly-relations"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = ["tessembly-core"]
 
 [[package]]
 name = "tessembly-text"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = ["tessembly-core"]
 
 [[package]]
 name = "tessembly-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = ["tessembly-codec", "tessembly-core", "tessembly-document", "tessembly-relations", "tessembly-text"]

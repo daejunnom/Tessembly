@@ -6,7 +6,9 @@ pub mod hold;
 pub mod model;
 pub use model::*;
 
-pub const PROFILE: &str = "tessembly.rfc2.precedence.v1";
+pub const PROFILE: &str = "tessembly.rfc3.order.v1";
+/// Historical comparator direction; accepted only when explicitly selected for migration.
+pub const LEGACY_PROFILE: &str = "tessembly.rfc2.precedence.v1";
 pub const PROTOCOL: &str = "tessembly.test-port.v1";
 pub const MAX_INPUT: usize = 65_536;
 pub const MAX_DEPTH: usize = 48;

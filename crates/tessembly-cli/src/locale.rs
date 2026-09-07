@@ -72,6 +72,10 @@ pub fn message(code: &str, language: Language) -> &'static str {
             "Unsupported semantic profile.",
             "지원하지 않는 의미 프로필입니다.",
         ),
+        "MIGRATION_REQUIRES_METADATA_HANDLER" => (
+            "Unknown metadata needs a profile-aware migration handler.",
+            "알 수 없는 메타데이터에는 프로필을 아는 별도 이관 처리가 필요합니다.",
+        ),
         "CONFIG_CONFLICT" => (
             "Document and host settings conflict.",
             "문서와 호스트 설정이 충돌합니다.",

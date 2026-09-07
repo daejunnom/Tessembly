@@ -7,7 +7,7 @@ Zero-dependency ESM library and CLI for Tetris supply formats. The bundled WebAs
 ```js
 import { createTessembly } from 'tessembly';
 const t = await createTessembly();
-console.log(t.checkPattern('P4:D(I<TS)'));
+console.log(t.checkPattern('P4:D(I>TS)'));
 const binary = t.encodePattern('P4:D(T)');
 console.log(t.decodePattern(binary));
 t.dispose();
@@ -22,7 +22,7 @@ const t = await createTessembly({ wasmUrl: '/assets/tessembly.wasm' });
 
 Instance methods: normalizePattern/checkPattern/encodePattern/decodePattern and equivalent *Document methods. Advanced documents preserve config, sources, custom IDs, references and decision declarations. Pattern options accept only rfc2 or PROFILE. NOT_CHECKED is not a satisfiability/PC proof; U is a relation, not placement validation. Opaque metadata is not silently discarded.
 
-**RFC2: A>B means A first; A<B means B first.** Comparisons use first occurrences inside the scope. Earlier kinds must exist, later kinds may be absent. Bare kinds mean presence. I<T>S equals T>IS. Braces are scopes, not bags.
+**RFC3: A<B means A first; A>B means B first.** Comparisons use first occurrences inside the scope. Earlier kinds must exist, later kinds may be absent. Bare kinds mean presence. I>T<S equals T<IS. Braces are scopes, not bags.
 
 Korean primary desktop/browser language selects ko; other languages select en. language/setLanguage override presentation; Node supports TESSEMBLY_LANG and locale variables. Error code/start/end, machine states and stored data do not change with language.
 
@@ -34,7 +34,7 @@ The same tarball is tested on Ubuntu 22.04/24.04, Windows x64, macOS Intel/Apple
 
 Packaged Wasm has a **32 MiB linear-memory cap per instance**, not an RSS/process/concurrency cap. Text is limited to 65,536 UTF-8 bytes; embedded patterns share model budgets. Unexpected traps invalidate the instance; normal input errors do not. dispose releases references, not a promise of immediate GC. Caller-supplied Wasm/URLs/paths are trusted configuration, never document-directed capabilities. File conversion refuses overwriting.
 
-[Security policy](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [Platform contracts](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). The 0.1.2 hardening release preserves RFC2 and zero-dependency policy. No claim of safety against every attack is made.
+[Security policy](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [Platform contracts](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). The 0.2.0 hardening release preserves RFC3 and zero-dependency policy. No claim of safety against every attack is made.
 
 Dataset/host adapters, PC search, randomizer execution and replay belong to external consumers. Optional conformance tests are developer tools, not product runtime.
 

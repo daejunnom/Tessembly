@@ -7,7 +7,7 @@ Rust와 동일한 파서·관계 검사·구조적 코덱을 사용하는 zero-d
 ```js
 import { createTessembly } from 'tessembly';
 const t = await createTessembly({ language: 'ko' });
-const result = t.checkPattern('P4:D(I<TS)');
+const result = t.checkPattern('P4:D(I>TS)');
 const binary = t.encodePattern('P4:D(T)');
 console.log(result, t.decodePattern(binary));
 t.dispose();
@@ -17,7 +17,7 @@ t.dispose();
 
 패턴: normalizePattern/checkPattern/encodePattern/decodePattern. 고급 문서: 동일한 *Document 메서드. NOT_CHECKED는 PC 성공이나 만족 가능성의 증명이 아닙니다. U 관계 검사는 실제 배치 검증이 아니며 불투명 메타데이터가 유실되는 텍스트 변환은 거부합니다.
 
-**RFC2에서 A>B는 A 선행, A<B는 B 선행입니다.** 같은 범위의 최초 등장끼리 비교합니다. 선행 종류가 있어야 하고 후행 종류는 없을 수 있습니다. 단독 종류는 존재 조건, I<T>S와 T>IS는 동일한 의미, 중괄호는 가방이 아닌 범위입니다.
+**RFC3에서 A<B는 A 선행, A>B는 B 선행입니다.** 같은 범위의 최초 등장끼리 비교합니다. 선행 종류가 있어야 하고 후행 종류는 없을 수 있습니다. 단독 종류는 존재 조건, I>T<S와 T<IS는 동일한 의미, 중괄호는 가방이 아닌 범위입니다.
 
 주 언어가 ko이면 한국어, 그 외는 영어입니다. language/setLanguage로 변경하며 Node는 TESSEMBLY_LANG·표준 로캘 변수도 지원합니다. 오류 code/start/end·기계 상태·문법·저장 데이터는 번역하지 않습니다.
 
@@ -29,7 +29,7 @@ CLI: tessembly help, tessembly check input.tsm, tessembly --lang ko doc-check in
 
 포함된 Wasm의 **인스턴스별 선형 메모리 상한은 32MiB**이며 프로세스 RSS나 동시 인스턴스 합계가 아닙니다. UTF-8 입력 65,536바이트와 내장 패턴 전체 예산을 적용합니다. 예상하지 못한 트랩 이후 인스턴스는 재사용하지 않지만 일반 입력 오류는 인스턴스를 오염시키지 않습니다. dispose는 참조 해제이지 즉각적인 GC 보장이 아닙니다. 대체 Wasm·URL·파일 경로는 신뢰한 호스트 설정이어야 합니다.
 
-[보안 정책·점검](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [실행 환경 계약](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). 0.1.2에서도 RFC2와 zero-dependency를 유지하며 모든 공격에 대한 안전을 보증하지 않습니다.
+[보안 정책·점검](https://github.com/daejunnom/Tessembly/blob/main/SECURITY.md) · [실행 환경 계약](https://github.com/daejunnom/Tessembly/blob/main/docs/PLATFORMS.md). 0.2.0에서도 RFC3와 zero-dependency를 유지하며 모든 공격에 대한 안전을 보증하지 않습니다.
 
 외부 개발자용 적합성 도구는 제품 런타임이 아닙니다. 데이터셋·Clearra 등의 연결과 PC 탐색·공급 실행·리플레이는 소비자가 구현합니다. Wasm은 배포 전에 Rust 원본에서 빌드되며 설치 후 재컴파일하지 않습니다.
 

@@ -1,6 +1,6 @@
-# RFC2 draft semantics and implementation scope
+# RFC3 draft semantics and implementation scope
 
-Semantic profile: `tessembly.rfc2.precedence.v1`.
+Semantic profile: `tessembly.rfc3.order.v1`.
 Package version, wire version, and test protocol version are independent.
 
 ## Compact grammar
@@ -27,9 +27,9 @@ The broader internal format is not claimed to cover every Clearra parser edge ca
 
 ## Relations
 
-`A>B` lowers to `Before(A,B)`; `A<B` lowers to `Before(B,A)`.
+`A<B` lowers to `Before(A,B)`; `A>B` lowers to `Before(B,A)`.
 A group comparison produces the Cartesian product of pairs. A mixed chain produces only
-adjacent comparisons. Thus `I<T>S` and `T>IS` are equivalent; `I<TS` is different.
+adjacent comparisons. Thus `I>T<S` and `T<IS` are equivalent; `I>TS` is different.
 No order is added inside IS or TS. Bare TS produces Present(T) AND Present(S).
 Duplicates may remain with source spans; self-pairs must never be removed as duplicates.
 
@@ -54,7 +54,7 @@ language intact. CLI `--deny-unsat` is a build policy, not a syntax redefinition
 
 The typed environment constructor rejects repeated keys even with equal values. Conflicting
 host/document environments fail; there is no last-write-wins or implicit missing environment.
-Environment keys/values are opaque in this draft and are not a full CONFIG parser.
+The typed environment is also represented by the advanced CONFIG parser in tessembly-document; compact fragments still receive their environment from the host.
 
 Hold slot NONE, EMPTY, OCCUPIED are distinct from used_this_turn and policy allow/deny.
 Default policy allows hold, but does not force it. Advanced per-active-kind rules are checked
@@ -72,8 +72,10 @@ engine mapping must be implemented and independently tested by the adapter; none
 
 ## Migration and provenance
 
-The supplied RFC1 archive SHA-256 was checked before rewriting:
-`aead36860d9b1808bcbf3e049a7c9d1affe91ff87aee3865250bfe15ba6acc7b`.
-Its Python source was read as reference, not used at runtime or copied as an engine.
-The RFC2 Work handoff defines the reversed comparison meaning. This draft rejects RFC1 input
-rather than reinterpreting it. A complete RFC1 migration tool remains follow-up work.
+RFC3 aligns comparison spelling with first-position order: `<` is earlier and `>` later.
+Explicit RFC2 text/wire migration preserves Before/Present nodes, scope, origins and configuration.
+Normal RFC3 entry points reject RFC2 headers. Bare compact strings need an external profile;
+there is no reliable content-only version inference. See [migration details](COMPARATOR_MIGRATION.md).
+
+Clearra-compatible inputs and internal structural similarity are the motivation for this syntax.
+Logical-filter and richer QB/OQB extensions remain [design only](plans/FILTERS_QB_OQB.en.md), awaiting owner GO.

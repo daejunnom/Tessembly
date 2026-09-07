@@ -50,3 +50,15 @@ test('denied storage still selects the browser primary language',async({browser}
   await page.addInitScript(()=>Object.defineProperty(window,'localStorage',{get:()=>{throw new DOMException('denied');}}));
   await page.goto('http://127.0.0.1:4173/Tessembly/');await expect(page).toHaveURL(/\/ko\/$/);await context.close();
 });
+
+for (const locale of ['en','ko'] as const) {
+  test(`${locale}: corrected comparator and unapproved review plan`,async({page})=>{
+    await page.goto(`/Tessembly/${locale}/migration/`);
+    const row=page.locator('#meaning tbody tr').first();
+    await expect(row.locator('td').nth(0)).toHaveText('A<B');
+    await expect(row.locator('td').nth(1)).toHaveText(locale==='en'?'A precedes B':'A가 B보다 먼저');
+    await page.goto(`/Tessembly/${locale}/review-plan/`);
+    await expect(page.locator('#gate')).toContainText('AWAITING OWNER GO/NO-GO');
+    await expect(page.locator('#gate a[href*="FILTERS_QB_OQB"]')).toHaveCount(1);
+  });
+}

@@ -4,7 +4,7 @@ mod oracle;
 use oracle::{before, set};
 use serde_json::{json, Value};
 use std::{collections::BTreeSet, env, time::Duration};
-const PROFILE: &str = "tessembly.rfc2.precedence.v1";
+const PROFILE: &str = "tessembly.rfc3.order.v1";
 const PROTOCOL: &str = "tessembly.test-port.v1";
 
 fn request(command: &[String], mut req: Value, id: usize) -> Result<Value, String> {
@@ -83,6 +83,25 @@ fn run(r: &mut Runner) {
         v["status"] == "OK" && v["complete"] == true
     });
     r.queues("P4 baseline", "P4", set(4, |_| true));
+    // Concrete sentinels catch reversals that a 360-vs-360 cardinality check cannot.
+    for (pattern, expected) in [
+        ("{IT}:D(I<T)", vec!["IT"]),
+        ("{TI}:D(I<T)", vec![]),
+        ("{IOSZ}:D(I<T)", vec!["IOSZ"]),
+        ("{TOSZ}:D(I<T)", vec![]),
+        ("{OSZJ}:D(I<T)", vec![]),
+        ("{IST}:D(I<T>S)", vec!["IST"]),
+        ("{TIS}:D(I<T>S)", vec![]),
+        ("{ITIT}:D(I<T)", vec!["ITIT"]),
+    ] {
+        r.queues(pattern, pattern, strings(&expected));
+    }
+    r.test(
+        "RFC2 requires explicit migration",
+        json!({"op":"compile","profile":"tessembly.rfc2.precedence.v1","text":"P4:D(I<T)"}),
+        |v| v["status"] == "UNSUPPORTED",
+    );
+
     r.queues("presence T", "P4:D(T)", set(4, |s| s.contains('T')));
     r.queues(
         "presence TS all",
@@ -90,48 +109,48 @@ fn run(r: &mut Runner) {
         set(4, |s| s.contains('T') && s.contains('S')),
     );
     r.queues(
-        "RFC2 less means right first",
-        "P4:D(I<T)",
+        "RFC3 greater means right first",
+        "P4:D(I>T)",
         set(4, |s| before(s, b'T', b'I')),
     );
     r.queues(
         "redundant presence",
-        "P4:D(I<T,T)",
+        "P4:D(I>T,T)",
         set(4, |s| before(s, b'T', b'I')),
     );
     r.queues(
         "later presence",
-        "P4:D(I<T,I)",
+        "P4:D(I>T,I)",
         set(4, |s| before(s, b'T', b'I') && s.contains('I')),
     );
     r.queues(
-        "greater means left first",
-        "P4:D(I>T,T)",
+        "less means left first",
+        "P4:D(I<T,T)",
         set(4, |s| before(s, b'I', b'T') && s.contains('T')),
     );
     r.queues(
         "group predecessors",
-        "P4:D(I<TS)",
+        "P4:D(I>TS)",
         set(4, |s| before(s, b'T', b'I') && before(s, b'S', b'I')),
     );
     r.queues(
         "group successors",
-        "P4:D(T>IS)",
+        "P4:D(T<IS)",
         set(4, |s| before(s, b'T', b'I') && before(s, b'T', b'S')),
     );
     r.queues(
         "mixed chain",
-        "P4:D(I<T>S)",
+        "P4:D(I>T<S)",
         set(4, |s| before(s, b'T', b'I') && before(s, b'T', b'S')),
     );
     r.queues(
         "group order irrelevant",
-        "P4:D(I<ST)",
+        "P4:D(I>ST)",
         set(4, |s| before(s, b'T', b'I') && before(s, b'S', b'I')),
     );
     r.queues(
         "comma equivalence",
-        "P4:D(I<T,I<S)",
+        "P4:D(I>T,I>S)",
         set(4, |s| before(s, b'T', b'I') && before(s, b'S', b'I')),
     );
     r.queues(
@@ -141,12 +160,12 @@ fn run(r: &mut Runner) {
     );
     r.queues(
         "P7 group predecessors",
-        "P7:D(I<TS)",
+        "P7:D(I>TS)",
         set(7, |s| before(s, b'T', b'I') && before(s, b'S', b'I')),
     );
     r.queues(
         "P7 mixed chain",
-        "P7:D(I<T>S)",
+        "P7:D(I>T<S)",
         set(7, |s| before(s, b'T', b'I') && before(s, b'T', b'S')),
     );
     r.queues("correlated permutation", "[SZ]!", strings(&["SZ", "ZS"]));
@@ -156,48 +175,48 @@ fn run(r: &mut Runner) {
         strings(&["SS", "SZ", "ZS", "ZZ"]),
     );
     r.queues("legacy duplicate kinds", "[TTI]!", strings(&["TI", "IT"]));
-    r.queues("fixed local scope", "T{IOSZ}:D(I>T)", strings(&["TIOSZ"]));
-    r.queues("global scope differs", "{TIOSZ}:D(I>T)", BTreeSet::new());
-    r.queues("rightmost attachment", "I[TS]!:D(T>S)", strings(&["ITS"]));
+    r.queues("fixed local scope", "T{IOSZ}:D(I<T)", strings(&["TIOSZ"]));
+    r.queues("global scope differs", "{TIOSZ}:D(I<T)", BTreeSet::new());
+    r.queues("rightmost attachment", "I[TS]!:D(T<S)", strings(&["ITS"]));
     r.queues(
         "union unsat branch survives",
-        "{P3:D(I<T<I);IOT}",
+        "{P3:D(I>T>I);IOT}",
         strings(&["IOT"]),
     );
     r.queues(
         "sibling scopes not merged",
-        "{IT}:D(I>T){TI}:D(T>I)",
+        "{IT}:D(I<T){TI}:D(T<I)",
         strings(&["ITTI"]),
     );
     r.queues(
         "first occurrence not all occurrences",
-        "{ITIT}:D(I>T)",
+        "{ITIT}:D(I<T)",
         strings(&["ITIT"]),
     );
-    r.queues("no earlier kind", "{IOS}:D(I<T)", BTreeSet::new());
-    r.queues("missing later kind", "{TSO}:D(I<T)", strings(&["TSO"]));
-    r.queues("both absent", "{OSZ}:D(I<T)", BTreeSet::new());
-    for text in ["P7:D(I<T<O<I)", "P7:D(I<T,O<I,T<O)", "P7:D(I>IT)"] {
+    r.queues("no earlier kind", "{IOS}:D(I>T)", BTreeSet::new());
+    r.queues("missing later kind", "{TSO}:D(I>T)", strings(&["TSO"]));
+    r.queues("both absent", "{OSZ}:D(I>T)", BTreeSet::new());
+    for text in ["P7:D(I>T>O>I)", "P7:D(I>T,O>I,T>O)", "P7:D(I<IT)"] {
         r.test(text, json!({"op":"compile","text":text}), |v| {
             v["status"] == "OK" && v["draw_feasibility"] == "UNSAT"
         });
     }
     r.test(
         "D/U opposite not statically conflated",
-        json!({"op":"compile","text":"P7:D(I>T)U(T>I)"}),
+        json!({"op":"compile","text":"P7:D(I<T)U(T<I)"}),
         |v| v["execution_feasibility"] == "NOT_CHECKED",
     );
     r.test(
         "U cycle leaves supply intact",
-        json!({"op":"compile","text":"P7:U(I<T<O<I)"}),
+        json!({"op":"compile","text":"P7:U(I>T>O>I)"}),
         |v| v["draw_feasibility"] == "NOT_CHECKED" && v["execution_feasibility"] == "UNSAT",
     );
     for text in [
         "P4:D(HAS(T))",
-        "P4:D?(I<T)",
+        "P4:D?(I>T)",
         "P4::D(T)",
         "P4:D(T)D(I)",
-        "P4:D(I<T,)",
+        "P4:D(I>T,)",
         "P4:D(I<)",
         "{P4",
         "[]",
@@ -212,7 +231,7 @@ fn run(r: &mut Runner) {
     }
     r.test(
         "explicit old profile rejected",
-        json!({"op":"compile","profile":"tessembly.rfc1.first-arrival.v1","text":"P4:D(I<T)"}),
+        json!({"op":"compile","profile":"tessembly.rfc1.first-arrival.v1","text":"P4:D(I>T)"}),
         |v| v["status"] == "UNSUPPORTED",
     );
     r.test(
@@ -230,12 +249,12 @@ fn run(r: &mut Runner) {
         json!({"op":"enumerate_D","text":"P4:U(T)"}),
         |v| v["status"] == "UNSUPPORTED",
     );
-    r.test("closed usage projection",json!({"op":"evaluate_U_witness","text":"{IT}:U(T>I)","queue":"IT","order":[1,0],"closed":true}),|v|v["matches"]==true&&v["legality_checked"]==false);
-    r.test("usage failure",json!({"op":"evaluate_U_witness","text":"{IT}:U(T>I)","queue":"IT","order":[0,1],"closed":true}),|v|v["matches"]==false);
+    r.test("closed usage projection",json!({"op":"evaluate_U_witness","text":"{IT}:U(T<I)","queue":"IT","order":[1,0],"closed":true}),|v|v["matches"]==true&&v["legality_checked"]==false);
+    r.test("usage failure",json!({"op":"evaluate_U_witness","text":"{IT}:U(T<I)","queue":"IT","order":[0,1],"closed":true}),|v|v["matches"]==false);
     r.test("unfinished usage not false",json!({"op":"evaluate_U_witness","text":"{IT}:U(T)","queue":"IT","order":[0],"closed":false}),|v|v["status"]=="NOT_CHECKED"&&v["matches"].is_null());
     r.test("duplicate source index",json!({"op":"evaluate_U_witness","text":"IT:U(T)","queue":"IT","order":[1,1],"closed":true}),|v|v["status"]=="INVALID_REQUEST");
-    r.test("scope use source not output prefix",json!({"op":"evaluate_U_witness","text":"I{TO}:U(T>O)","queue":"ITO","order":[1,0,2],"closed":true}),|v|v["matches"]==true);
-    r.test("union preserves different usage witnesses",json!({"op":"evaluate_U_witness","text":"{IT:U(T);{IT}:U(T>I)}","queue":"IT","order":[0],"closed":true}),|v|v["matches"]==false);
+    r.test("scope use source not output prefix",json!({"op":"evaluate_U_witness","text":"I{TO}:U(T<O)","queue":"ITO","order":[1,0,2],"closed":true}),|v|v["matches"]==true);
+    r.test("union preserves different usage witnesses",json!({"op":"evaluate_U_witness","text":"{IT:U(T);{IT}:U(T<I)}","queue":"IT","order":[0],"closed":true}),|v|v["matches"]==false);
     let occupied = hold_state(json!({"piece":"T","origin":11}));
     r.test(
         "occupied hold swap",
@@ -318,7 +337,7 @@ fn run(r: &mut Runner) {
     );
     if let Some(v) = r.test(
         "codec encode",
-        json!({"op":"encode","text":"{P4:D(I<TS,T)}:U(T>I)"}),
+        json!({"op":"encode","text":"{P4:D(I>TS,T)}:U(T<I)"}),
         |v| v["status"] == "OK" && v["hex"].is_string(),
     ) {
         if let Some(hex) = v["hex"].as_str() {
@@ -347,7 +366,7 @@ fn run(r: &mut Runner) {
             .flat_map(|s| ['I', 'T', 'S'].map(move |c| format!("{s}{c}")))
             .collect();
     }
-    let pattern = format!("{{{}}}:D(I<T>S)", words.join(";"));
+    let pattern = format!("{{{}}}:D(I>T<S)", words.join(";"));
     let expected = words
         .into_iter()
         .filter(|s| before(s, b'T', b'I') && before(s, b'T', b'S'))
@@ -377,7 +396,7 @@ fn main() {
     run(&mut r);
     let passed = r.results.iter().filter(|v| v["passed"] == true).count();
     let output = json!({"profile":PROFILE,"protocol":PROTOCOL,"passed":passed,"total":r.results.len(),
-        "scope":"black-box RFC2 reference contracts; not Clearra or GUI certification","results":r.results,"complete":!r.aborted});
+        "scope":"black-box RFC3 reference contracts; not Clearra or GUI certification","results":r.results,"complete":!r.aborted});
     if let Some(path) = report {
         if let Err(e) = std::fs::write(
             path,

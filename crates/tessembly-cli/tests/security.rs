@@ -73,7 +73,7 @@ fn binary_embedding_cannot_reset_predicate_budget() {
     for _ in 0..4 {
         number(&mut body, 0);
     }
-    let mut encoded = b"TSDC\x01\x02".to_vec();
+    let mut encoded = b"TSDC\x01\x03".to_vec();
     number(&mut encoded, 1);
     number(&mut encoded, 1);
     encoded.push(1);

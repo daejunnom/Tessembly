@@ -1,10 +1,10 @@
 use tessembly_core::{
-    Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span, MAX_DEPTH,
-    MAX_INPUT, MAX_NODES, MAX_PREDICATES, PROFILE,
+    Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span,
+    LEGACY_PROFILE, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES, PROFILE,
 };
 
 pub fn parse(text: &str, profile: &str) -> Result<Node> {
-    if profile != PROFILE {
+    if profile != PROFILE && profile != LEGACY_PROFILE {
         return Err(Error::new("UNSUPPORTED_PROFILE"));
     }
     if text.len() > MAX_INPUT {
@@ -15,6 +15,7 @@ pub fn parse(text: &str, profile: &str) -> Result<Node> {
         at: 0,
         nodes: 0,
         predicates: 0,
+        legacy: profile == LEGACY_PROFILE,
     };
     let node = parser.pattern(0)?;
     parser.ws();
@@ -29,6 +30,7 @@ struct Parser<'a> {
     at: usize,
     nodes: usize,
     predicates: usize,
+    legacy: bool,
 }
 impl Parser<'_> {
     fn ws(&mut self) {
@@ -275,7 +277,7 @@ impl Parser<'_> {
             let right = self.group()?;
             for a in &left {
                 for b in &right {
-                    let kind = if op == b'>' {
+                    let kind = if (op == b'<') != self.legacy {
                         PredicateKind::Before(*a, *b)
                     } else {
                         PredicateKind::Before(*b, *a)

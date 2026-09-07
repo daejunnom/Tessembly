@@ -19,17 +19,21 @@ async function main() {
   language = detectLanguage({language, env:process.env, systemLanguage:Intl.DateTimeFormat().resolvedOptions().locale});
   const command = args.shift() ?? 'help';
   if (['help','--help','-h'].includes(command)) {
-    console.log(language === 'ko' ? 'Tessembly — 한국어 도움말\nRFC2: A>B는 A 선행, A<B는 B 선행입니다.\n존재: D(T). 범위: {}. 비교는 최초 등장 기준입니다.\n명령: check, format, encode, decode, doc-check, doc-format, doc-encode, doc-decode\n입력 파일 뒤에 바이너리/텍스트 출력 파일을 지정합니다(변환 명령).\n--lang ko|en|auto  --profile rfc2  --deny-unsat\n이 도구는 PC 탐색·외부 DB 조회를 하지 않습니다.' : 'Tessembly — English help\nRFC2: A>B means A first; A<B means B first.\nPresence: D(T). Scope: {}. Comparisons use the first occurrence.\nCommands: check, format, encode, decode, doc-check, doc-format, doc-encode, doc-decode\nConversion commands take an input file followed by an output file.\n--lang ko|en|auto  --profile rfc2  --deny-unsat\nNo PC search or external dataset lookup is performed.');
+    console.log(language === 'ko' ? 'Tessembly — 한국어 도움말\nRFC3: A<B는 A 선행, A>B는 B 선행입니다.\n존재: D(T). 범위: {}. 비교는 최초 등장 기준입니다.\n명령: check, format, encode, decode, doc-check, doc-format, doc-encode, doc-decode\n입력 파일 뒤에 바이너리/텍스트 출력 파일을 지정합니다(변환 명령).\n--lang ko|en|auto  --profile rfc3  --deny-unsat\nRFC2 이관: migrate-rfc2, doc-migrate-rfc2, migrate-binary-rfc2, doc-migrate-binary-rfc2.\n이 도구는 PC 탐색·외부 DB 조회를 하지 않습니다.' : 'Tessembly — English help\nRFC3: A<B means A first; A>B means B first.\nPresence: D(T). Scope: {}. Comparisons use the first occurrence.\nCommands: check, format, encode, decode, doc-check, doc-format, doc-encode, doc-decode\nConversion commands take an input file followed by an output file.\n--lang ko|en|auto  --profile rfc3  --deny-unsat\nRFC2 migration: migrate-rfc2, doc-migrate-rfc2, migrate-binary-rfc2, doc-migrate-binary-rfc2.\nNo PC search or external dataset lookup is performed.');
     return;
   }
   const operations = {check:'checkPattern', lint:'checkPattern', format:'normalizePattern', encode:'encodePattern', decode:'decodePattern',
+    'migrate-rfc2':'migrateRfc2Pattern','doc-migrate-rfc2':'migrateRfc2Document',
+    'migrate-binary-rfc2':'migrateRfc2PatternBinary','doc-migrate-binary-rfc2':'migrateRfc2DocumentBinary',
     'doc-check':'checkDocument', 'doc-format':'normalizeDocument', 'doc-encode':'encodeDocument', 'doc-decode':'decodeDocument'};
-  const op = Object.hasOwn(operations, command) ? operations[command] : undefined; const conversion = /(?:en|de)code$/.test(command);
+  const op = Object.hasOwn(operations, command) ? operations[command] : undefined; const migration = command.includes('migrate'); const conversion = migration || /(?:en|de)code$/.test(command);
+  const binaryInput = command.endsWith('decode') || command.includes('migrate-binary');
+  if (profile !== PROFILE && profile !== 'rfc3') throw Object.assign(new Error(),{code:'UNSUPPORTED_PROFILE'});
   if (!op || args.length !== (conversion ? 2 : 1) || args.some(s=>s.startsWith('--'))) throw Object.assign(new Error(),{code:'INVALID_ARGUMENTS'});
   const t = await createTessembly({language});
   try {
-    const input = await readLimitedFile(args[0], command.endsWith('decode') ? MAX_BINARY_BYTES : MAX_TEXT_BYTES, language);
-    const value = t[op](command.endsWith('decode') ? input : new TextDecoder('utf-8',{fatal:true}).decode(input), {profile});
+    const input = await readLimitedFile(args[0], binaryInput ? MAX_BINARY_BYTES : MAX_TEXT_BYTES, language);
+    const value = t[op](binaryInput ? input : new TextDecoder('utf-8',{fatal:true}).decode(input), {profile});
     if (conversion) await writeFile(args[1], value, { flag: 'wx' });
     else if (typeof value === 'string') console.log(value);
     else { console.log(JSON.stringify(value)); if (deny && (value.draw==='UNSAT' || value.usage==='UNSAT')) process.exitCode=1; }

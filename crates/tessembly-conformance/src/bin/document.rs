@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 use serde_json::{json, Value};
 use std::{env, fs, process::ExitCode, time::Duration};
-const PROFILE: &str = "tessembly.rfc2.precedence.v1";
+const PROFILE: &str = "tessembly.rfc3.order.v1";
 const PROTOCOL: &str = "tessembly.document-test-port.v1";
 fn doc(body: &str) -> String {
     format!("tessembly \"{PROFILE}\";\n{body}")
@@ -58,7 +58,7 @@ fn run(r: &mut Runner) {
         json!({"op":"capabilities"}),
         |v| v["status"] == "OK" && v["intended_user"] == "external-integrator",
     );
-    let simple = doc("supply(\"P4\"); draw(I<TS,I);");
+    let simple = doc("supply(\"P4\"); draw(I>TS,I);");
     r.test(
         "advanced relations are declarations",
         json!({"op":"validate","text":simple}),
@@ -70,22 +70,22 @@ fn run(r: &mut Runner) {
     );
     let a = r.test(
         "mixed chain projection",
-        json!({"op":"project","text":doc("supply(\"P4\"); draw(I<T>S);")}),
+        json!({"op":"project","text":doc("supply(\"P4\"); draw(I>T<S);")}),
         |v| v["status"] == "OK" && v["projection_only"] == true,
     );
     r.test(
         "group projection equals mixed chain",
-        json!({"op":"project","text":doc("supply(\"P4\"); draw(T>IS);")}),
+        json!({"op":"project","text":doc("supply(\"P4\"); draw(T<IS);")}),
         |v| a.as_ref().is_some_and(|a| a["pattern"] == v["pattern"]),
     );
     r.test(
         "global cycle detected",
-        json!({"op":"validate","text":doc("supply(\"P7\"); draw(I<T<O<I);")}),
+        json!({"op":"validate","text":doc("supply(\"P7\"); draw(I>T>O>I);")}),
         |v| v["feasibility"]["draw"] == "UNSAT",
     );
     r.test(
         "use cycle does not empty supply",
-        json!({"op":"validate","text":doc("supply(\"P7\"); use(I<T<O<I);")}),
+        json!({"op":"validate","text":doc("supply(\"P7\"); use(I>T>O>I);")}),
         |v| v["feasibility"]["draw"] == "NOT_CHECKED" && v["feasibility"]["use"] == "UNSAT",
     );
     for (name, body) in [

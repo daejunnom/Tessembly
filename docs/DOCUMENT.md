@@ -1,19 +1,19 @@
 # Advanced document v1
 
-Semantic profile: `tessembly.rfc2.precedence.v1`. Document schema: `tessembly.document.v1`.
+Semantic profile: `tessembly.rfc3.order.v1`. Document schema: `tessembly.document.v1`.
 The public reference implementation is `crates/tessembly-document`. It does not execute
 randomizers, observation policies, external references or dataset queries.
 
 ## Grammar
 
-Start with `tessembly "tessembly.rfc2.precedence.v1";`. A single `config { key=value; }`
+Start with `tessembly "tessembly.rfc3.order.v1";`. A single `config { key=value; }`
 block is optional for a reusable fragment. `supply(source);` is required once. `draw(...)`
 and `use(...)` are each optional once. `reference(...)` and `select(...)` have unique IDs.
 Duplicate keys, named arguments and singleton declarations are errors even when equal.
 `//` comments, UTF-8 quoted strings, unsigned integers, booleans, symbols, lists and
 nested data calls are supported. Named arguments follow positional arguments.
 
-`draw(I<TS,I)` normalizes to `before("T","I")`, `before("S","I")`, `present("I")`.
+`draw(I>TS,I)` normalizes to `before("T","I")`, `before("S","I")`, `present("I")`.
 Named relation functions also work with registered custom piece IDs. Compact D/U and
 local braces can remain inside `supply("...")`. Scope and physical bag are different.
 
@@ -61,7 +61,7 @@ prefix feasibility, future-information discipline and actual choice are host-own
 
 ## Structural wire
 
-TSDC document wire begins `54 53 44 43 01 02`: magic, wire v1, RFC2. Then u32 LE section
+TSDC document wire begins `54 53 44 43 01 03`: magic, wire v1, RFC3. Then u32 LE section
 count, each section u32 ID + u8 flags (0 optional / 1 critical) + u32 LE payload length.
 Section 1 is required and critical. Payload order: config mapping, source value, draw
 predicates, use predicates, reference calls, decision calls.
@@ -101,3 +101,5 @@ Repository CI runs it against the reference host solely as regression evidence.
 External data access and actual Clearra/CTK3/Fumen/Sfinder/HF adapters are implemented by
 the user or other developers. They are not pending internal Tessembly features. A consumer
 must negotiate capabilities and report unsupported profiles/states without dropping data.
+
+Legacy RFC2 documents require explicit migration. Rich QB/OQB and Boolean extensions are not implemented; see [review plan](plans/FILTERS_QB_OQB.en.md).

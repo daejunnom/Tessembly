@@ -55,7 +55,7 @@ fn malformed_bytes_do_not_panic() {
             let _ = decode(&x);
         }
     }
-    let mut overflow = b"TSMB\x01\x02".to_vec();
+    let mut overflow = b"TSMB\x01\x03".to_vec();
     overflow.extend([255; 10]);
     assert!(decode(&overflow).is_err());
 }

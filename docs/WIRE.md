@@ -3,7 +3,7 @@
 Not a final stable interchange promise. Standard-piece AST only; environment, hold state,
 custom piece registries, and mandatory extension execution are not implemented here.
 
-Header: ASCII `TSMB`, byte 1 (wire), byte 2 (RFC2 semantics), canonical unsigned LEB128 body
+Header: ASCII `TSMB`, byte 1 (wire), byte 3 (RFC3 semantics), canonical unsigned LEB128 body
 length. Integers are unsigned. Redundant LEB128 high zero groups and overflows are rejected.
 Body: root node followed by extension count and extension TLVs. No trailing data is allowed.
 Max body 1 MiB, max extensions 64. Text is not re-parsed to decode this format.
@@ -31,3 +31,5 @@ or verified. Unsupported wire/semantic versions are rejected rather than guessed
 Scopes, predicates, and source spans round-trip structurally. Packed literal IDs and relation
 pairs do not bind to CTK3 palette values. Permutations are stored as pools, never enumerated.
 No cross-language structure-memory copying or unsafe pointer decoding is used.
+
+RFC2 byte 2 is accepted only by explicit migrate-rfc2 operations. Before/Present payload direction is never flipped. See [migration](COMPARATOR_MIGRATION.md).

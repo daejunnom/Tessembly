@@ -4,14 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createTessembly, PROFILE, TessemblyError, detectLanguage, resolveLanguage } from '../node.js';
-const doc = `tessembly "${PROFILE}"; config { hold=slot(initial=empty); see=view(next=5); rule=seven_bag(); start=boundary(); } supply("P4"); draw(I<TS,I);`;
+const doc = `tessembly "${PROFILE}"; config { hold=slot(initial=empty); see=view(next=5); rule=seven_bag(); start=boundary(); } supply("P4"); draw(I>TS,I);`;
 test('zero imports: bundled Wasm uses no WASI, glue package or native addon', async () => {
   const wasm = await readFile(new URL('../tessembly.wasm', import.meta.url));
   assert.deepEqual(WebAssembly.Module.imports(new WebAssembly.Module(wasm)), []);
 });
 test('same Rust parser normalizes group and mixed-chain syntax', async () => {
   const t = await createTessembly({language:'en'});
-  assert.equal(t.normalizePattern('P4:D(I<T>S)'), t.normalizePattern('P4:D(T>IS)'));
+  assert.equal(t.normalizePattern('P4:D(I>T<S)'), t.normalizePattern('P4:D(T<IS)'));
   assert.match(t.normalizePattern('P4:D(T)'), /D\(T\)/);
   assert.throws(()=>t.normalizePattern('P4:D(HAS(T))'),TessemblyError);
   assert.throws(()=>t.normalizePattern('P4',{profile:'rfc1'}), {code:'UNSUPPORTED_PROFILE'});
@@ -19,8 +19,8 @@ test('same Rust parser normalizes group and mixed-chain syntax', async () => {
 });
 test('D and U contradictions remain different domains', async () => {
   const t = await createTessembly();
-  assert.equal(t.checkPattern('P7:D(I<T<I)').draw, 'UNSAT');
-  const u = t.checkPattern('P7:U(I<T<I)');
+  assert.equal(t.checkPattern('P7:D(I>T>I)').draw, 'UNSAT');
+  const u = t.checkPattern('P7:U(I>T>I)');
   assert.equal(u.draw,'NOT_CHECKED'); assert.equal(u.usage,'UNSAT');
   assert.equal(u.executionChecked,false); t.dispose();
 });

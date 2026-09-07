@@ -16,17 +16,17 @@ The receipt binds the original source and digest; this command only reads public
 
 ## Next release / 다음 배포
 
-The current platform/security candidate is **0.1.2**. Start a NEW manual `Publish npm package` run:
+The current comparator-alignment candidate is **0.2.0**. Start a NEW manual `Publish npm package` run:
 
 | Input | Value |
 |---|---|
 | Branch | main |
 | mode | publish |
-| expected_version | 0.1.2 |
+| expected_version | 0.2.0 |
 
 `verify-only` is the safe default: it builds and validates without uploading or testing npm authorization. `publish` uploads the exact verified MIT tarball. Native platform tests, installed npm consumer tests and the separate security audit must pass first. Source pushes and passing builds do not publish automatically. Never rerun the old token bootstrap job to publish the new source.
 
-현재 보강 후보는 **0.1.2**입니다. 새 Run workflow에서 `main / publish / 0.1.2`를 지정하세요. `verify-only`는 실제 npm 인증을 시험하지 않습니다. 네이티브·npm 플랫폼·별도 보안 검증 뒤 검증한 압축 파일만 공개하며 소스 push로 자동 배포하지 않습니다.
+현재 보강 후보는 **0.2.0**입니다. 새 Run workflow에서 `main / publish / 0.2.0`를 지정하세요. `verify-only`는 실제 npm 인증을 시험하지 않습니다. 네이티브·npm 플랫폼·별도 보안 검증 뒤 검증한 압축 파일만 공개하며 소스 push로 자동 배포하지 않습니다.
 
 ## Existing trusted publisher / 유지할 설정
 
@@ -63,8 +63,8 @@ Confirmation retries only transient conditions for at most five minutes plus an 
 ## Verification and token retirement / 완료 확인과 토큰 폐기
 
 ```sh
-npm view tessembly@0.1.2 version license dist.integrity --registry=https://registry.npmjs.org/
-npm view tessembly@0.1.2 dist.attestations --json --registry=https://registry.npmjs.org/
+npm view tessembly@0.2.0 version license dist.integrity --registry=https://registry.npmjs.org/
+npm view tessembly@0.2.0 dist.attestations --json --registry=https://registry.npmjs.org/
 ```
 
 Compare the registry integrity with `build-info.json` from that same run. The final workflow also downloads and hashes the actual tarball and checks MIT text. Provenance and OIDC are related but distinct: a provenance badge alone does not prove no token was loaded by a workflow.

@@ -7,7 +7,7 @@ mod schema;
 mod source;
 mod value;
 pub mod wire;
-pub use parser::parse;
+pub use parser::{migrate_rfc2, parse};
 use std::collections::BTreeMap;
 use tessembly_core::{
     Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span,

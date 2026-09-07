@@ -6,7 +6,7 @@ The separate advanced-document port and runner are specified in [DOCUMENT.md](DO
 
 UTF-8 JSON Lines on stdin/stdout: one response per request, diagnostics on stderr. Each
 request requires id, protocol=`tessembly.test-port.v1`,
-profile=`tessembly.rfc2.precedence.v1`, and op. Unknown fields are rejected. The applied
+profile=`tessembly.rfc3.order.v1`, and op. Unknown fields are rejected. The applied
 profile and request id are echoed. Old profiles are not guessed.
 
 | op | Additional fields |
@@ -21,7 +21,7 @@ profile and request id are echoed. Old profiles are not guessed.
 | resolve_config | document, host (null or arrays of [key,value] pairs) |
 
 ```json
-{"id":1,"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc2.precedence.v1","op":"enumerate_D","text":"P4:D(I<TS)"}
+{"id":1,"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc3.order.v1","op":"enumerate_D","text":"P4:D(I>TS)"}
 ```
 
 Expected count is 176. A complete result includes the exact queue set without duplicate
@@ -37,7 +37,7 @@ make the whole union impossible.
 ## Hold transport
 
 ```json
-{"id":2,"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc2.precedence.v1","op":"hold_step","action":"hold","state":{"active":{"piece":"I","origin":10},"held":{"piece":"T","origin":11},"used_this_turn":false,"queue":[{"piece":"O","origin":12}],"cursor":0,"tail":"END"},"policy":{"allowed":true,"rules":[{"when_active":"T","allowed":false}]}}
+{"id":2,"protocol":"tessembly.test-port.v1","profile":"tessembly.rfc3.order.v1","op":"hold_step","action":"hold","state":{"active":{"piece":"I","origin":10},"held":{"piece":"T","origin":11},"used_this_turn":false,"queue":[{"piece":"O","origin":12}],"cursor":0,"tail":"END"},"policy":{"allowed":true,"rules":[{"when_active":"T","allowed":false}]}}
 ```
 
 Current active I is not denied by this rule. Swapping gives active T, held I, unchanged

@@ -1,4 +1,4 @@
-tessembly "tessembly.rfc2.precedence.v1";
+tessembly "tessembly.rfc3.order.v1";
 config {
     rule = seven_bag();
     start = boundary();

@@ -7,7 +7,7 @@ pub fn format(root: &Node) -> Result<String> {
         ps.iter()
             .map(|p| match p.kind {
                 PredicateKind::Present(a) => a.to_string(),
-                PredicateKind::Before(a, b) => format!("{a}>{b}"),
+                PredicateKind::Before(a, b) => format!("{a}<{b}"),
             })
             .collect::<Vec<_>>()
             .join(",")

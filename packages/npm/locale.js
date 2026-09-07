@@ -15,6 +15,7 @@ const messages = {
   INVALID_ARGUMENTS: ['Invalid arguments.', '인수가 올바르지 않습니다.'],
   PROFILE_REQUIRED: ['Specify the semantic profile.', '의미 프로필을 지정하세요.'],
   UNSUPPORTED_PROFILE: ['This semantic profile is not supported.', '지원하지 않는 의미 프로필입니다.'],
+  MIGRATION_REQUIRES_METADATA_HANDLER: ['Unknown metadata requires a profile-aware migration handler.', '알 수 없는 메타데이터에는 프로필을 아는 별도 이관 처리가 필요합니다.'],
   CONFIG_CONFLICT: ['Document and host settings conflict.', '문서 설정과 호스트 설정이 충돌합니다.'],
   INVALID_UTF8: ['Input must be valid UTF-8.', '올바른 UTF-8 입력이 필요합니다.'],
   INPUT_LIMIT: ['Input exceeds the supported size.', '입력 크기가 지원 한도를 초과했습니다.'],
