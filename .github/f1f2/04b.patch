@@ -1,0 +1,242 @@
+diff --git a/crates/tessembly-core/src/lib.rs b/crates/tessembly-core/src/lib.rs
+index 81f616a..dfeb89a 100644
+--- a/crates/tessembly-core/src/lib.rs
++++ b/crates/tessembly-core/src/lib.rs
+@@ -4,6 +4,8 @@ pub mod budget;
+ pub mod config;
+ pub mod hold;
+ pub mod model;
++pub mod filter;
++pub use filter::{CountOp, Filter, Occurrence};
+ pub use model::*;
+ 
+ pub const PROFILE: &str = "tessembly.rfc3.order.v1";
+diff --git a/crates/tessembly-core/src/model.rs b/crates/tessembly-core/src/model.rs
+index db98187..29d4d67 100644
+--- a/crates/tessembly-core/src/model.rs
++++ b/crates/tessembly-core/src/model.rs
+@@ -53,10 +53,11 @@ pub fn letters(queue: &[Piece]) -> String {
+     queue.iter().map(|p| p.ascii() as char).collect()
+ }
+ 
+-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
++#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+ pub enum PredicateKind {
+     Present(Piece),
+     Before(Piece, Piece),
++    Filter(crate::Filter<Piece>),
+ }
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct Predicate {
+@@ -119,7 +120,7 @@ impl Node {
+                 if block.is_empty() {
+                     return Err(Error::new("EMPTY_CONSTRAINT"));
+                 }
+-                budget.predicates(block.len())?;
++
+                 if block
+                     .iter()
+                     .any(|p| p.span.start > p.span.end || p.span.end > MAX_INPUT)
+@@ -165,8 +166,24 @@ impl Node {
+                     total
+                 }
+             };
++            for (block, selectors) in [(&n.constraints.draw, true), (&n.constraints.use_order, false)] {
++                if let Some(ps) = block {
++                    for p in ps {
++                        match &p.kind {
++                            PredicateKind::Filter(f) => f.validate_with(budget, Some(len), selectors, &mut |_, _| Ok(()))?,
++                            _ => budget.predicates(1)?,
++                        }
++                    }
++                }
++            }
+             Ok(len)
+         }
+         visit(self, 0, budget)
+     }
+ }
++
++impl Predicate {
++    pub fn units(&self) -> usize {
++        match &self.kind { PredicateKind::Filter(f) => f.units(), _ => 1 }
++    }
++}
+diff --git a/crates/tessembly-document/src/lib.rs b/crates/tessembly-document/src/lib.rs
+index 06cb658..ec35ed3 100644
+--- a/crates/tessembly-document/src/lib.rs
++++ b/crates/tessembly-document/src/lib.rs
+@@ -19,6 +19,7 @@ pub const DOCUMENT_SCHEMA: &str = "tessembly.document.v1";
+ pub enum NamedPredicate {
+     Present(String),
+     Before(String, String),
++    Filter(tessembly_core::Filter<String>),
+ }
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct Document {
+@@ -86,6 +87,7 @@ impl Document {
+                             NamedPredicate::Before(a, b) => {
+                                 PredicateKind::Before(piece(a)?, piece(b)?)
+                             }
++                            NamedPredicate::Filter(f) => PredicateKind::Filter(f.try_map(&mut |s|piece(s))?),
+                         },
+                     })
+                 })
+@@ -110,3 +112,15 @@ impl Document {
+         render::requirements(self)
+     }
+ }
++
++impl NamedPredicate {
++    pub(crate) fn append(f: tessembly_core::Filter<String>, out: &mut Vec<Self>) {
++        use tessembly_core::Filter;
++        match f {
++            Filter::All(xs) => { for x in xs { Self::append(x,out); } }
++            Filter::Present(s) if s.nth==1 => out.push(Self::Present(s.piece)),
++            Filter::Before(a,b) if a.nth==1 && b.nth==1 => out.push(Self::Before(a.piece,b.piece)),
++            f => out.push(Self::Filter(f)),
++        }
++    }
++}
+diff --git a/crates/tessembly-document/src/parser.rs b/crates/tessembly-document/src/parser.rs
+index e6a0aa1..88cec40 100644
+--- a/crates/tessembly-document/src/parser.rs
++++ b/crates/tessembly-document/src/parser.rs
+@@ -22,6 +22,7 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
+         at: 0,
+         nodes: 0,
+         profile,
++        predicates: 0,
+     };
+     if p.ident()? != "tessembly" {
+         return Err(p.error("PROFILE_REQUIRED"));
+@@ -54,6 +55,19 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
+             }
+             continue;
+         }
++        if name=="draw" || name=="use" {
++            p.expect(b'(')?;
++            let (parsed,at)=tessembly_text::filter::parse_conditions(p.text,p.at,profile,true,&mut p.predicates)?;
++            p.at=at;
++            let mut predicates=Vec::new();
++            for (f,_) in parsed { NamedPredicate::append(f,&mut predicates); }
++            if !predicates.iter().any(|p|matches!(p,NamedPredicate::Filter(_))) {
++                predicates.sort(); predicates.dedup();
++            }
++            if name=="draw" { doc.draw=predicates; } else { doc.use_order=predicates; }
++            p.expect(b';')?;
++            continue;
++        }
+         let call = p.call(name.clone(), 0)?;
+         p.expect(b';')?;
+         match name.as_str() {
+@@ -68,23 +82,6 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
+                     profile,
+                 )?);
+             }
+-            "draw" | "use" => {
+-                call.keys(&[])?;
+-                if call.args.is_empty() {
+-                    return Err(p.error("EMPTY_CONSTRAINT"));
+-                }
+-                let mut predicates = Vec::new();
+-                for value in call.args {
+-                    predicate(value, &mut predicates)?;
+-                }
+-                predicates.sort();
+-                predicates.dedup();
+-                if name == "draw" {
+-                    doc.draw = predicates;
+-                } else {
+-                    doc.use_order = predicates;
+-                }
+-            }
+             "reference" => doc.references.push(call),
+             "select" => doc.decisions.push(call),
+             _ => return Err(p.error("UNKNOWN_DECLARATION")),
+@@ -126,47 +123,12 @@ fn normalize_source(value: Value, profile: &str) -> Result<Value> {
+         _ => Err(Error::new("INVALID_SOURCE")),
+     }
+ }
+-fn predicate(v: Value, out: &mut Vec<NamedPredicate>) -> Result<()> {
+-    match v {
+-        Value::Symbol(group) if group.bytes().all(|b| b"IOTSZJL".contains(&b)) => {
+-            for c in group.chars() {
+-                out.push(NamedPredicate::Present(c.to_string()));
+-            }
+-        }
+-        Value::Call(c) if c.name == "before" => {
+-            c.keys(&[])?;
+-            c.arity(2)?;
+-            out.push(NamedPredicate::Before(
+-                c.args[0].text()?.into(),
+-                c.args[1].text()?.into(),
+-            ));
+-        }
+-        Value::Call(c) if c.name == "present" => {
+-            c.keys(&[])?;
+-            c.arity(1)?;
+-            out.push(NamedPredicate::Present(c.args[0].text()?.into()));
+-        }
+-        Value::Call(c) if c.name == "all" => {
+-            c.keys(&[])?;
+-            if c.args.is_empty() {
+-                return Err(Error::new("EMPTY_CONSTRAINT"));
+-            }
+-            for child in c.args {
+-                predicate(child, out)?;
+-            }
+-        }
+-        _ => return Err(Error::new("INVALID_RELATION")),
+-    }
+-    if out.len() > MAX_PREDICATES {
+-        return Err(Error::new("PREDICATE_LIMIT"));
+-    }
+-    Ok(())
+-}
+ struct Parser<'a> {
+     text: &'a str,
+     at: usize,
+     nodes: usize,
+     profile: &'static str,
++    predicates: usize,
+ }
+ impl Parser<'_> {
+     fn error(&self, code: &'static str) -> Error {
+diff --git a/crates/tessembly-document/src/render.rs b/crates/tessembly-document/src/render.rs
+index 0ba7aed..2dc494e 100644
+--- a/crates/tessembly-document/src/render.rs
++++ b/crates/tessembly-document/src/render.rs
+@@ -34,6 +34,7 @@ pub(crate) fn text(doc: &Document) -> Result<String> {
+                 NamedPredicate::Before(a, b) => {
+                     format!("before({}, {})", value::quote(a), value::quote(b))
+                 }
++                NamedPredicate::Filter(f) => tessembly_text::filter::render(f,true,&|s|value::quote(s)),
+             });
+         }
+         text.push_str(&format!("{name}({});\n", xs.join(", ")));
+@@ -72,6 +73,16 @@ pub(crate) fn requirements(doc: &Document) -> Result<Vec<String>> {
+             }
+             Value::Pattern(n) => {
+                 out.insert("pattern.rfc3".into());
++                fn filters(n:&tessembly_core::Node,out:&mut BTreeSet<String>) {
++                    for ps in [&n.constraints.draw,&n.constraints.use_order].into_iter().flatten() {
++                        for p in ps {if let tessembly_core::PredicateKind::Filter(f)=&p.kind {f.capabilities(out);}}
++                    }
++                    match &n.kind {
++                        tessembly_core::NodeKind::Concat(xs)|tessembly_core::NodeKind::Union(xs)=>{for x in xs {filters(x,out);}}
++                        tessembly_core::NodeKind::Scope(n)=>filters(n,out),_=>{}
++                    }
++                }
++                filters(n,out);
+                 if n.contains_use() {
+                     out.insert("relations.use".into());
+                 }
+@@ -85,6 +96,7 @@ pub(crate) fn requirements(doc: &Document) -> Result<Vec<String>> {
+     if doc.config.contains_key("registry") {
+         out.insert("pieces.custom-ids".into());
+     }
++    for p in doc.draw.iter().chain(&doc.use_order) { if let NamedPredicate::Filter(f)=p {f.capabilities(&mut out);} }
+     if !doc.draw.is_empty() {
+         out.insert("relations.draw".into());
+     }
