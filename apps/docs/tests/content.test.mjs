@@ -24,13 +24,13 @@ test('Korean primary only; all other language values fall back to English',()=>{
   for(const v of ['en-US','ja-JP','zh-CN','kok','C','',undefined])assert.equal(languageOf(v),'en');
 });
 
-test('RFC3 direction and review gate are explicit in both languages',()=>{
+test('RFC3 migration remains public; GO/NO-GO review content is not published',()=>{
   for(const lang of ['en','ko']) {
     const cs=getChapters(lang);
     const rows=cs.find(c=>c.slug==='migration').sections.find(s=>s.id==='meaning').blocks[0].rows;
     assert.equal(rows[0][0],'A<B');
     assert.equal(rows[0][1],lang==='en'?'A precedes B':'A가 B보다 먼저');
-    const plan=cs.find(c=>c.slug==='review-plan');
-    assert.ok(JSON.stringify(plan).includes('AWAITING OWNER GO/NO-GO'));
+    assert.equal(cs.some(c=>c.slug==='review-plan'),false);
+    assert.doesNotMatch(JSON.stringify(cs),/review-plan|GO\/NO-GO|FILTERS_QB_OQB/);
   }
 });

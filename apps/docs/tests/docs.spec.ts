@@ -52,13 +52,21 @@ test('denied storage still selects the browser primary language',async({browser}
 });
 
 for (const locale of ['en','ko'] as const) {
-  test(`${locale}: corrected comparator and unapproved review plan`,async({page})=>{
+  test(`${locale}: migration remains available and review page is absent`,async({page,isMobile})=>{
     await page.goto(`/Tessembly/${locale}/migration/`);
     const row=page.locator('#meaning tbody tr').first();
     await expect(row.locator('td').nth(0)).toHaveText('A<B');
     await expect(row.locator('td').nth(1)).toHaveText(locale==='en'?'A precedes B':'A가 B보다 먼저');
-    await page.goto(`/Tessembly/${locale}/review-plan/`);
-    await expect(page.locator('#gate')).toContainText('AWAITING OWNER GO/NO-GO');
-    await expect(page.locator('#gate a[href*="FILTERS_QB_OQB"]')).toHaveCount(1);
+    await expect(page.locator('a[href*="review-plan"]')).toHaveCount(0);
+    if(isMobile)await page.getByRole('button',{name:locale==='ko'?'메뉴':'Menu',exact:true}).click();
+    await page.getByRole('searchbox',{name:locale==='ko'?'문서 검색':'Search documentation'}).fill('GO/NO-GO');
+    await expect(page.getByRole('status')).toHaveText(locale==='ko'?'일치하는 문서가 없습니다.':'No matching documents.');
+    const response=await page.goto(`/Tessembly/${locale}/review-plan/`);
+    expect(response?.status()).toBe(404);
+    await expect(page.locator('#gate')).toHaveCount(0);
   });
 }
+test('unlocalized review route is absent',async({request})=>{
+  const response=await request.get('/Tessembly/review-plan/');
+  expect(response.status()).toBe(404);
+});

@@ -38,6 +38,9 @@ jobs:
           npm run test:content
           npm run check
           npm run build
+          for path in review-plan en/review-plan ko/review-plan; do
+            test ! -e "build/$path"
+          done
       - name: Browser prerequisites
         working-directory: apps/docs
         run: npx playwright install --with-deps chromium
@@ -84,11 +87,22 @@ jobs:
           done
           test "$ready" = 1
           for lang in en ko; do
-            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ migration/ review-plan/ scope/; do
+            for path in '' quickstart/ compact/ advanced/ state/ wire/ integrators/ tools/ npm/ platforms/ security/ migration/ scope/; do
               curl --fail --silent --show-error --location --max-time 20 "${SITE_URL}${lang}/${path}" -o /tmp/page.html
               grep -q "lang=\"${lang}\"" /tmp/page.html
               grep -q 'Tessembly' /tmp/page.html
+              if grep -q 'review-plan' /tmp/page.html; then echo 'Removed review page remains linked'; exit 1; fi
               echo "PUBLIC_OK ${lang}/${path}"
             done
+          done
+          for path in review-plan/ en/review-plan/ ko/review-plan/; do
+            absent=0
+            for attempt in {1..15}; do
+              status=$(curl --silent --show-error --max-time 20 --output /tmp/retired-page.html --write-out '%{http_code}' "${SITE_URL}${path}")
+              if test "$status" = 404; then absent=1; break; fi
+              sleep 3
+            done
+            test "$absent" = 1
+            echo "PUBLIC_REMOVED $path"
           done
           echo "Verified bilingual source: $EXPECTED_SHA"
