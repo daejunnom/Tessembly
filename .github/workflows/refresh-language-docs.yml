@@ -24,6 +24,7 @@ jobs:
         run: |
           node .github/docs-refresh/update.mjs
           node .github/docs-refresh/text.mjs
+          node .github/docs-refresh/types.mjs
           node scripts/sync-language-reference.mjs
       - name: Build native help and verify displayed examples
         run: |
