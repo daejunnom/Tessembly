@@ -80,7 +80,7 @@ fn dispatch(op: u32, input: &[u8]) -> Result<Vec<u8>> {
 // Rust pointer dereferences. The library has no unsafe blocks.
 #[no_mangle]
 pub extern "C" fn ts_abi_version() -> u32 {
-    2
+    3
 }
 #[no_mangle]
 pub extern "C" fn ts_reserve_input(len: u32) -> u32 {

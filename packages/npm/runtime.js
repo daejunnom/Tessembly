@@ -21,7 +21,7 @@ export async function fromBytes(bytes, { language = 'en' } = {}) {
     if (cause instanceof TessemblyError) throw cause;
     throw new TessemblyError('WASM_LOAD_FAILED', { language, cause });
   }
-  if (!(x.memory instanceof WebAssembly.Memory) || typeof x.ts_abi_version !== 'function' || x.ts_abi_version() !== 2 ||
+  if (!(x.memory instanceof WebAssembly.Memory) || typeof x.ts_abi_version !== 'function' || x.ts_abi_version() !== 3 ||
       ['ts_reserve_input','ts_run','ts_output_ptr','ts_output_len','ts_error_start','ts_error_end','ts_reset'].some(k => typeof x[k] !== 'function')) {
     throw new TessemblyError('WASM_ABI_MISMATCH', { language });
   }

@@ -37,7 +37,7 @@ function trapModule() {
   const sec = (id, b) => [id,...u(b.length),...b];
   const names=['ts_abi_version','ts_reserve_input','ts_run','ts_output_ptr','ts_output_len','ts_error_start','ts_error_end','ts_reset'];
   const funcs=[0,1,1,0,0,0,0,2];
-  const bodies=names.map((_,i)=> i===2?[0,0,11]: i===7?[0,11]:[0,65,i===0?2:i===1?8:0,11]);
+  const bodies=names.map((_,i)=> i===2?[0,0,11]: i===7?[0,11]:[0,65,i===0?3:i===1?8:0,11]);
   return new Uint8Array([0,97,115,109,1,0,0,0,
     ...sec(1,[3,96,0,1,127,96,1,127,1,127,96,0,0]),
     ...sec(3,[8,...funcs]),...sec(5,[1,1,1,...u(512)]),

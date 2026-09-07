@@ -1,7 +1,7 @@
 //! Small, budgeted developer oracle. Not the format parser or a PC search engine.
 use std::collections::BTreeSet;
 use tessembly_core::{Error, Node, NodeKind, Piece, Predicate, Result};
-use tessembly_relations::matches;
+use tessembly_relations::matches_checked;
 
 #[derive(Clone)]
 pub struct UseScope {
@@ -19,6 +19,14 @@ pub struct Budget {
     pub remaining: usize,
 }
 impl Budget {
+    fn charge(&mut self, n: usize) -> Result<()> {
+        if n > self.remaining {
+            return Err(Error::new("INCOMPLETE"));
+        }
+        self.remaining -= n;
+        self.steps += n;
+        Ok(())
+    }
     fn tick(&mut self) -> Result<()> {
         if self.remaining == 0 {
             return Err(Error::new("INCOMPLETE"));
@@ -36,7 +44,7 @@ fn push(out: &mut Vec<Variant>, v: Variant, budget: &mut Budget, cells: &mut usi
         v.queue.len()
             + v.uses
                 .iter()
-                .map(|s| s.predicates.len() * 8 + 3)
+                .map(|s| s.predicates.iter().map(Predicate::units).sum::<usize>() * 8 + 3)
                 .sum::<usize>(),
     );
     if out.len() >= MAX_VARIANTS || *cells > MAX_CELLS {
@@ -130,7 +138,15 @@ pub fn variants(root: &Node, budget: &mut Budget) -> Result<Vec<Variant>> {
             }
         }
         if let Some(ps) = &n.constraints.draw {
-            out.retain(|v| matches(&v.queue, ps));
+            let mut accepted = Vec::new();
+            let weight = ps.iter().map(Predicate::units).sum::<usize>();
+            for v in out {
+                b.charge(weight.saturating_mul(v.queue.len() + 1))?;
+                if matches_checked(&v.queue, ps)? {
+                    accepted.push(v);
+                }
+            }
+            out = accepted;
         }
         if let Some(ps) = &n.constraints.use_order {
             let existing: usize = out
@@ -139,13 +155,21 @@ pub fn variants(root: &Node, budget: &mut Budget) -> Result<Vec<Variant>> {
                     v.queue.len()
                         + v.uses
                             .iter()
-                            .map(|s| s.predicates.len() * 8 + 3)
+                            .map(|s| {
+                                s.predicates.iter().map(Predicate::units).sum::<usize>() * 8 + 3
+                            })
                             .sum::<usize>()
                 })
                 .sum();
             let added = out
                 .len()
-                .checked_mul(ps.len().saturating_mul(8).saturating_add(3))
+                .checked_mul(
+                    ps.iter()
+                        .map(Predicate::units)
+                        .sum::<usize>()
+                        .saturating_mul(8)
+                        .saturating_add(3),
+                )
                 .ok_or_else(|| Error::new("INCOMPLETE"))?;
             if added > MAX_CELLS.saturating_sub(existing) {
                 return Err(Error::new("INCOMPLETE"));
@@ -165,7 +189,7 @@ pub fn variants(root: &Node, budget: &mut Budget) -> Result<Vec<Variant>> {
                 v.queue.len()
                     + v.uses
                         .iter()
-                        .map(|s| s.predicates.len() * 8 + 3)
+                        .map(|s| s.predicates.iter().map(Predicate::units).sum::<usize>() * 8 + 3)
                         .sum::<usize>()
             })
             .sum();
@@ -209,14 +233,27 @@ pub fn check_use(
             continue;
         }
         member = true;
-        if v.uses.iter().all(|scope| {
+        let mut satisfied = true;
+        for scope in &v.uses {
             let projected: Vec<_> = order
                 .iter()
                 .filter(|i| **i >= scope.start && **i < scope.end)
                 .map(|i| queue[*i])
                 .collect();
-            matches(&projected, &scope.predicates)
-        }) {
+            budget.charge(
+                scope
+                    .predicates
+                    .iter()
+                    .map(Predicate::units)
+                    .sum::<usize>()
+                    .saturating_mul(projected.len() + 1),
+            )?;
+            if !matches_checked(&projected, &scope.predicates)? {
+                satisfied = false;
+                break;
+            }
+        }
+        if satisfied {
             return Ok(Some(true));
         }
     }

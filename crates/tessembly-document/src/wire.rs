@@ -89,6 +89,10 @@ fn predicates(out: &mut Vec<u8>, ps: &[NamedPredicate]) -> Result<()> {
                 string(out, a)?;
                 string(out, b)?;
             }
+            NamedPredicate::Filter(f) => {
+                put(out, &[2])?;
+                bytes(out, &tessembly_codec::filter::encode_named(f)?)?;
+            }
         }
     }
     Ok(())
@@ -232,13 +236,22 @@ impl<'a> Reader<'a, '_> {
     }
     fn predicates(&mut self) -> Result<Vec<NamedPredicate>> {
         let n = self.count(MAX_PREDICATES)?;
-        self.budget.predicates(n)?;
         let mut out = Vec::new();
         for _ in 0..n {
             out.push(match self.byte()? {
-                0 => NamedPredicate::Present(self.string()?),
-                1 => NamedPredicate::Before(self.string()?, self.string()?),
-                _ => return Err(Error::new("UNKNOWN_RELATION_TAG")),
+                0 => {
+                    self.budget.predicates(1)?;
+                    NamedPredicate::Present(self.string()?)
+                }
+                1 => {
+                    self.budget.predicates(1)?;
+                    NamedPredicate::Before(self.string()?, self.string()?)
+                }
+                2 if !self.legacy => {
+                    let b = self.bytes()?;
+                    NamedPredicate::Filter(tessembly_codec::filter::decode_named(b, self.budget)?)
+                }
+                _ => return Err(Error::new("UNSUPPORTED_RELATION_TAG")),
             });
         }
         Ok(out)

@@ -7,7 +7,7 @@ fn kinds(s: &str, profile: &str) -> Vec<PredicateKind> {
         .draw
         .unwrap()
         .into_iter()
-        .map(|p| p.kind)
+        .map(|p| p.kind.clone())
         .collect()
 }
 #[test]

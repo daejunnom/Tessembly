@@ -22,6 +22,7 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
         at: 0,
         nodes: 0,
         profile,
+        predicates: 0,
     };
     if p.ident()? != "tessembly" {
         return Err(p.error("PROFILE_REQUIRED"));
@@ -54,6 +55,35 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
             }
             continue;
         }
+        if name == "draw" || name == "use" {
+            p.expect(b'(')?;
+            let (parsed, at) = tessembly_text::filter::parse_conditions(
+                p.text,
+                p.at,
+                profile,
+                true,
+                &mut p.predicates,
+            )?;
+            p.at = at;
+            let mut predicates = Vec::new();
+            for (f, _) in parsed {
+                NamedPredicate::append(f, &mut predicates);
+            }
+            if !predicates
+                .iter()
+                .any(|p| matches!(p, NamedPredicate::Filter(_)))
+            {
+                predicates.sort();
+                predicates.dedup();
+            }
+            if name == "draw" {
+                doc.draw = predicates;
+            } else {
+                doc.use_order = predicates;
+            }
+            p.expect(b';')?;
+            continue;
+        }
         let call = p.call(name.clone(), 0)?;
         p.expect(b';')?;
         match name.as_str() {
@@ -67,23 +97,6 @@ fn parse_profile(text: &str, profile: &'static str) -> Result<Document> {
                         .ok_or_else(|| p.error("SUPPLY_REQUIRED"))?,
                     profile,
                 )?);
-            }
-            "draw" | "use" => {
-                call.keys(&[])?;
-                if call.args.is_empty() {
-                    return Err(p.error("EMPTY_CONSTRAINT"));
-                }
-                let mut predicates = Vec::new();
-                for value in call.args {
-                    predicate(value, &mut predicates)?;
-                }
-                predicates.sort();
-                predicates.dedup();
-                if name == "draw" {
-                    doc.draw = predicates;
-                } else {
-                    doc.use_order = predicates;
-                }
             }
             "reference" => doc.references.push(call),
             "select" => doc.decisions.push(call),
@@ -126,47 +139,12 @@ fn normalize_source(value: Value, profile: &str) -> Result<Value> {
         _ => Err(Error::new("INVALID_SOURCE")),
     }
 }
-fn predicate(v: Value, out: &mut Vec<NamedPredicate>) -> Result<()> {
-    match v {
-        Value::Symbol(group) if group.bytes().all(|b| b"IOTSZJL".contains(&b)) => {
-            for c in group.chars() {
-                out.push(NamedPredicate::Present(c.to_string()));
-            }
-        }
-        Value::Call(c) if c.name == "before" => {
-            c.keys(&[])?;
-            c.arity(2)?;
-            out.push(NamedPredicate::Before(
-                c.args[0].text()?.into(),
-                c.args[1].text()?.into(),
-            ));
-        }
-        Value::Call(c) if c.name == "present" => {
-            c.keys(&[])?;
-            c.arity(1)?;
-            out.push(NamedPredicate::Present(c.args[0].text()?.into()));
-        }
-        Value::Call(c) if c.name == "all" => {
-            c.keys(&[])?;
-            if c.args.is_empty() {
-                return Err(Error::new("EMPTY_CONSTRAINT"));
-            }
-            for child in c.args {
-                predicate(child, out)?;
-            }
-        }
-        _ => return Err(Error::new("INVALID_RELATION")),
-    }
-    if out.len() > MAX_PREDICATES {
-        return Err(Error::new("PREDICATE_LIMIT"));
-    }
-    Ok(())
-}
 struct Parser<'a> {
     text: &'a str,
     at: usize,
     nodes: usize,
     profile: &'static str,
+    predicates: usize,
 }
 impl Parser<'_> {
     fn error(&self, code: &'static str) -> Error {

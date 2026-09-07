@@ -10,7 +10,7 @@ fn group_chain_normalizes_to_same_edges() {
             .as_ref()
             .unwrap()
             .iter()
-            .map(|p| p.kind)
+            .map(|p| p.kind.clone())
             .collect::<Vec<_>>()
     };
     assert_eq!(kinds(&a), kinds(&b));

@@ -188,6 +188,7 @@ fn handle(req: &Value) -> Result<Value> {
         "capabilities" => {
             return Ok(json!({"status":"OK","complete":true,
             "operations":["compile","format","encode","decode","enumerate_D","evaluate_U_witness","hold_step","check_adapter","resolve_config"],
+            "filter_capabilities":["filters.logic.v1","filters.count.v1","filters.window.v1","filters.occurrence.v1"],
             "wire":"tessembly.ast-wire.v1.experimental","enumeration":"bounded-development-only",
             "limits":{"input_bytes":tessembly_core::MAX_INPUT,"max_draws":tessembly_core::MAX_DRAWS,"max_work":1000000},
             "not_implemented":["rfc1-migration","config-text","full-game-legality","see-n-policy-evaluation","custom-piece-codec","clearra-adapter","hf-lookup","gui-e2e","replay"]}))
@@ -278,7 +279,7 @@ fn handle(req: &Value) -> Result<Value> {
         Ok(n) => n,
         Err(e) => {
             return Ok(
-                json!({"status":if e.code.ends_with("LIMIT") {"INCOMPLETE"} else {"INVALID_SYNTAX"},
+                json!({"status":if e.code.ends_with("LIMIT") {"INCOMPLETE"} else if e.code.starts_with("UNSUPPORTED") {"UNSUPPORTED"} else {"INVALID_SYNTAX"},
             "complete":false,"error":{"code":e.code,"start":e.span.start,"end":e.span.end}}),
             )
         }

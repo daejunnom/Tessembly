@@ -1,5 +1,6 @@
 //! Experimental structural AST wire v1. Not a source-text wrapper or expanded queue file.
 #![forbid(unsafe_code)]
+pub mod filter;
 use tessembly_core::budget::ModelBudget;
 use tessembly_core::{
     Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span, MAX_DEPTH,
@@ -33,7 +34,7 @@ fn span(out: &mut Vec<u8>, s: Span) {
     var(out, s.start);
     var(out, s.end);
 }
-fn write_node(out: &mut Vec<u8>, n: &Node) {
+fn write_node(out: &mut Vec<u8>, n: &Node) -> Result<()> {
     match &n.kind {
         NodeKind::Literal(p) => out.push((*p as u8) << 4),
         NodeKind::Pool { mask, take } => out.extend_from_slice(&[1, *mask, *take]),
@@ -45,12 +46,12 @@ fn write_node(out: &mut Vec<u8>, n: &Node) {
             });
             var(out, ns.len());
             for child in ns {
-                write_node(out, child);
+                write_node(out, child)?;
             }
         }
         NodeKind::Scope(child) => {
             out.push(4);
-            write_node(out, child);
+            write_node(out, child)?;
         }
     }
     span(out, n.span);
@@ -63,15 +64,22 @@ fn write_node(out: &mut Vec<u8>, n: &Node) {
     {
         var(out, ps.len());
         for p in ps {
-            match p.kind {
-                PredicateKind::Present(a) => out.extend_from_slice(&[0, a as u8]),
+            match &p.kind {
+                PredicateKind::Present(a) => out.extend_from_slice(&[0, *a as u8]),
                 PredicateKind::Before(a, b) => {
-                    out.extend_from_slice(&[1, a as u8 | ((b as u8) << 3)])
+                    out.extend_from_slice(&[1, *a as u8 | ((*b as u8) << 3)])
+                }
+                PredicateKind::Filter(f) => {
+                    out.push(2);
+                    let encoded = filter::encode_pieces(f)?;
+                    var(out, encoded.len());
+                    out.extend(encoded);
                 }
             }
             span(out, p.span);
         }
     }
+    Ok(())
 }
 pub fn encode(doc: &Document) -> Result<Vec<u8>> {
     doc.root.validate()?;
@@ -79,7 +87,7 @@ pub fn encode(doc: &Document) -> Result<Vec<u8>> {
         return Err(Error::new("EXTENSION_LIMIT"));
     }
     let mut body = Vec::new();
-    write_node(&mut body, &doc.root);
+    write_node(&mut body, &doc.root)?;
     var(&mut body, doc.optional_extensions.len());
     let mut ids = std::collections::BTreeSet::new();
     for ext in &doc.optional_extensions {
@@ -106,6 +114,7 @@ struct Reader<'a, 'b> {
     b: &'a [u8],
     at: usize,
     budget: &'b mut ModelBudget,
+    legacy: bool,
 }
 impl Reader<'_, '_> {
     fn byte(&mut self) -> Result<u8> {
@@ -148,17 +157,31 @@ impl Reader<'_, '_> {
         if count == 0 || count > MAX_PREDICATES {
             return Err(Error::new("PREDICATE_LIMIT"));
         }
-        self.budget.predicates(count)?;
         let mut out = Vec::new();
         for _ in 0..count {
             let tag = self.byte()?;
-            let code = self.byte()?;
-            let kind = match tag {
-                0 => PredicateKind::Present(Piece::from_id(code)?),
-                1 if code & 192 == 0 => {
-                    PredicateKind::Before(Piece::from_id(code & 7)?, Piece::from_id(code >> 3)?)
+            let kind = if tag == 2 && !self.legacy {
+                let len = self.var()?;
+                let end = self
+                    .at
+                    .checked_add(len)
+                    .ok_or_else(|| Error::new("BINARY_LIMIT"))?;
+                let value = self
+                    .b
+                    .get(self.at..end)
+                    .ok_or_else(|| Error::new("TRUNCATED_BINARY"))?;
+                self.at = end;
+                PredicateKind::Filter(filter::decode_pieces(value, self.budget)?)
+            } else {
+                self.budget.predicates(1)?;
+                let code = self.byte()?;
+                match tag {
+                    0 => PredicateKind::Present(Piece::from_id(code)?),
+                    1 if code & 192 == 0 => {
+                        PredicateKind::Before(Piece::from_id(code & 7)?, Piece::from_id(code >> 3)?)
+                    }
+                    _ => return Err(Error::new("UNSUPPORTED_PREDICATE_TAG")),
                 }
-                _ => return Err(Error::new("INVALID_PREDICATE_TAG")),
             };
             out.push(Predicate {
                 kind,
@@ -252,6 +275,7 @@ fn decode_profile(bytes: &[u8], budget: &mut ModelBudget, magic: &[u8; 6]) -> Re
         b: bytes,
         at: 6,
         budget,
+        legacy: magic[5] == 2,
     };
     let len = r.var()?;
     if len != bytes.len().saturating_sub(r.at) {

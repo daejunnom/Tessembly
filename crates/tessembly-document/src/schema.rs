@@ -16,27 +16,35 @@ pub(crate) fn validate(doc: &Document) -> Result<()> {
     }
     let registry = config::registry(&doc.config)?;
     config::validate(&doc.config, &registry)?;
-    source::validate_source(
+    let source_len = source::validate_source(
         doc.source
             .as_ref()
             .ok_or_else(|| Error::new("SUPPLY_REQUIRED"))?,
         &registry,
     )?;
-    budget.predicates(doc.draw.len().saturating_add(doc.use_order.len()))?;
-    for p in doc.draw.iter().chain(&doc.use_order) {
-        let mut check = |s: &String| {
-            budget.text(s.len())?;
-            if registry.contains(s) {
-                Ok(())
-            } else {
-                Err(Error::new("UNREGISTERED_PIECE"))
-            }
-        };
-        match p {
-            NamedPredicate::Present(a) => check(a)?,
-            NamedPredicate::Before(a, b) => {
-                check(a)?;
-                check(b)?;
+    for (ps, selectors) in [(&doc.draw, true), (&doc.use_order, false)] {
+        for p in ps {
+            let mut check = |s: &String, budget: &mut ModelBudget| -> Result<()> {
+                budget.text(s.len())?;
+                if registry.contains(s) {
+                    Ok(())
+                } else {
+                    Err(Error::new("UNREGISTERED_PIECE"))
+                }
+            };
+            match p {
+                NamedPredicate::Present(a) => {
+                    budget.predicates(1)?;
+                    check(a, &mut budget)?;
+                }
+                NamedPredicate::Before(a, b) => {
+                    budget.predicates(1)?;
+                    check(a, &mut budget)?;
+                    check(b, &mut budget)?;
+                }
+                NamedPredicate::Filter(f) => {
+                    f.validate_with(&mut budget, source_len, selectors, &mut check)?
+                }
             }
         }
     }

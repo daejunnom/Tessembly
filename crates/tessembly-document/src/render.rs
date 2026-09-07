@@ -34,6 +34,9 @@ pub(crate) fn text(doc: &Document) -> Result<String> {
                 NamedPredicate::Before(a, b) => {
                     format!("before({}, {})", value::quote(a), value::quote(b))
                 }
+                NamedPredicate::Filter(f) => {
+                    tessembly_text::filter::render(f, true, &|s| value::quote(s))
+                }
             });
         }
         text.push_str(&format!("{name}({});\n", xs.join(", ")));
@@ -72,6 +75,29 @@ pub(crate) fn requirements(doc: &Document) -> Result<Vec<String>> {
             }
             Value::Pattern(n) => {
                 out.insert("pattern.rfc3".into());
+                fn filters(n: &tessembly_core::Node, out: &mut BTreeSet<String>) {
+                    for ps in [&n.constraints.draw, &n.constraints.use_order]
+                        .into_iter()
+                        .flatten()
+                    {
+                        for p in ps {
+                            if let tessembly_core::PredicateKind::Filter(f) = &p.kind {
+                                f.capabilities(out);
+                            }
+                        }
+                    }
+                    match &n.kind {
+                        tessembly_core::NodeKind::Concat(xs)
+                        | tessembly_core::NodeKind::Union(xs) => {
+                            for x in xs {
+                                filters(x, out);
+                            }
+                        }
+                        tessembly_core::NodeKind::Scope(n) => filters(n, out),
+                        _ => {}
+                    }
+                }
+                filters(n, out);
                 if n.contains_use() {
                     out.insert("relations.use".into());
                 }
@@ -84,6 +110,11 @@ pub(crate) fn requirements(doc: &Document) -> Result<Vec<String>> {
     }
     if doc.config.contains_key("registry") {
         out.insert("pieces.custom-ids".into());
+    }
+    for p in doc.draw.iter().chain(&doc.use_order) {
+        if let NamedPredicate::Filter(f) = p {
+            f.capabilities(&mut out);
+        }
     }
     if !doc.draw.is_empty() {
         out.insert("relations.draw".into());

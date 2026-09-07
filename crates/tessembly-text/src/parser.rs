@@ -1,6 +1,6 @@
 use tessembly_core::{
-    Constraints, Error, Node, NodeKind, Piece, Predicate, PredicateKind, Result, Span,
-    LEGACY_PROFILE, MAX_DEPTH, MAX_INPUT, MAX_NODES, MAX_PREDICATES, PROFILE,
+    Constraints, Error, Node, NodeKind, Piece, Result, Span, LEGACY_PROFILE, MAX_DEPTH, MAX_INPUT,
+    MAX_NODES, PROFILE,
 };
 
 pub fn parse(text: &str, profile: &str) -> Result<Node> {
@@ -196,11 +196,21 @@ impl Parser<'_> {
                     return Err(self.error("DUPLICATE_LOCAL_BLOCK"));
                 }
                 self.expect(b'(')?;
-                let mut predicates = self.predicate()?;
-                while self.eat(b',') {
-                    predicates.extend(self.predicate()?);
+                let source =
+                    std::str::from_utf8(self.source).map_err(|_| self.error("INVALID_UTF8"))?;
+                let profile = if self.legacy { LEGACY_PROFILE } else { PROFILE };
+                let (parsed, at) = crate::filter::parse_conditions(
+                    source,
+                    self.at,
+                    profile,
+                    false,
+                    &mut self.predicates,
+                )?;
+                self.at = at;
+                let mut predicates = Vec::new();
+                for (f, span) in parsed {
+                    crate::filter::standard_predicates(f, span, &mut predicates)?;
                 }
-                self.expect(b')')?;
                 *slot = Some(predicates);
                 blocks += 1;
             }
@@ -228,70 +238,5 @@ impl Parser<'_> {
         } else {
             Err(self.error("EXPECTED_COUNT"))
         }
-    }
-    fn group(&mut self) -> Result<Vec<Piece>> {
-        let mut mask = 0u8;
-        while let Some(c) = self.peek() {
-            match Piece::from_ascii(c) {
-                Ok(p) if c.is_ascii_uppercase() => {
-                    mask |= p.bit();
-                    self.at += 1;
-                }
-                _ => break,
-            }
-        }
-        if mask == 0 {
-            return Err(self.error("EXPECTED_PIECE_GROUP"));
-        }
-        Ok(Piece::ALL
-            .into_iter()
-            .filter(|p| mask & p.bit() != 0)
-            .collect())
-    }
-    fn push_predicate(
-        &mut self,
-        out: &mut Vec<Predicate>,
-        kind: PredicateKind,
-        start: usize,
-    ) -> Result<()> {
-        self.predicates += 1;
-        if self.predicates > MAX_PREDICATES {
-            return Err(self.error("PREDICATE_LIMIT"));
-        }
-        out.push(Predicate {
-            kind,
-            span: Span {
-                start,
-                end: self.at,
-            },
-        });
-        Ok(())
-    }
-    fn predicate(&mut self) -> Result<Vec<Predicate>> {
-        self.ws();
-        let start = self.at;
-        let mut left = self.group()?;
-        let mut out = Vec::new();
-        while let Some(op @ (b'<' | b'>')) = self.peek() {
-            self.at += 1;
-            let right = self.group()?;
-            for a in &left {
-                for b in &right {
-                    let kind = if (op == b'<') != self.legacy {
-                        PredicateKind::Before(*a, *b)
-                    } else {
-                        PredicateKind::Before(*b, *a)
-                    };
-                    self.push_predicate(&mut out, kind, start)?;
-                }
-            }
-            left = right;
-        }
-        if out.is_empty() {
-            for p in left {
-                self.push_predicate(&mut out, PredicateKind::Present(p), start)?;
-            }
-        }
-        Ok(out)
     }
 }

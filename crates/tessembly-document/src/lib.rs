@@ -19,6 +19,7 @@ pub const DOCUMENT_SCHEMA: &str = "tessembly.document.v1";
 pub enum NamedPredicate {
     Present(String),
     Before(String, String),
+    Filter(tessembly_core::Filter<String>),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Document {
@@ -86,6 +87,9 @@ impl Document {
                             NamedPredicate::Before(a, b) => {
                                 PredicateKind::Before(piece(a)?, piece(b)?)
                             }
+                            NamedPredicate::Filter(f) => {
+                                PredicateKind::Filter(f.try_map(&mut |s| piece(s))?)
+                            }
                         },
                     })
                 })
@@ -108,5 +112,23 @@ impl Document {
     }
     pub fn requirements(&self) -> Result<Vec<String>> {
         render::requirements(self)
+    }
+}
+
+impl NamedPredicate {
+    pub(crate) fn append(f: tessembly_core::Filter<String>, out: &mut Vec<Self>) {
+        use tessembly_core::Filter;
+        match f {
+            Filter::All(xs) => {
+                for x in xs {
+                    Self::append(x, out);
+                }
+            }
+            Filter::Present(s) if s.nth == 1 => out.push(Self::Present(s.piece)),
+            Filter::Before(a, b) if a.nth == 1 && b.nth == 1 => {
+                out.push(Self::Before(a.piece, b.piece))
+            }
+            f => out.push(Self::Filter(f)),
+        }
     }
 }

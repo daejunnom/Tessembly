@@ -1,0 +1,240 @@
+//! Supply-only boolean filters. Windows select positions; they never create bags.
+use crate::{budget::ModelBudget, Error, Result, MAX_DEPTH, MAX_DRAWS, MAX_PREDICATES};
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Occurrence<K> {
+    pub piece: K,
+    /// One-based ordinal inside the current closed window, not a token-origin ID.
+    pub nth: u16,
+}
+impl<K> Occurrence<K> {
+    pub fn first(piece: K) -> Self {
+        Self { piece, nth: 1 }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[repr(u8)]
+pub enum CountOp {
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+impl CountOp {
+    pub fn test(self, actual: usize, expected: u16) -> bool {
+        let b = usize::from(expected);
+        match self {
+            Self::Eq => actual == b,
+            Self::Ne => actual != b,
+            Self::Lt => actual < b,
+            Self::Le => actual <= b,
+            Self::Gt => actual > b,
+            Self::Ge => actual >= b,
+        }
+    }
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Eq => "=",
+            Self::Ne => "!=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+        }
+    }
+    pub fn from_id(id: u8) -> Result<Self> {
+        match id {
+            0 => Ok(Self::Eq),
+            1 => Ok(Self::Ne),
+            2 => Ok(Self::Lt),
+            3 => Ok(Self::Le),
+            4 => Ok(Self::Gt),
+            5 => Ok(Self::Ge),
+            _ => Err(Error::new("INVALID_COUNT_OPERATOR")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Filter<K> {
+    Present(Occurrence<K>),
+    Before(Occurrence<K>, Occurrence<K>),
+    Count(K, CountOp, u16),
+    All(Vec<Self>),
+    Any(Vec<Self>),
+    Not(Box<Self>),
+    /// Inclusive, one-based indices relative to the enclosing scope.
+    In {
+        start: u16,
+        end: u16,
+        condition: Box<Self>,
+    },
+}
+impl<K> Filter<K> {
+    /// Check the complete tree before evaluation, including short-circuited branches.
+    pub fn validate_with(
+        &self,
+        budget: &mut ModelBudget,
+        scope_len: Option<usize>,
+        selectors: bool,
+        check_id: &mut impl FnMut(&K, &mut ModelBudget) -> Result<()>,
+    ) -> Result<()> {
+        fn visit<K>(
+            f: &Filter<K>,
+            depth: usize,
+            budget: &mut ModelBudget,
+            len: Option<usize>,
+            selectors: bool,
+            id: &mut impl FnMut(&K, &mut ModelBudget) -> Result<()>,
+        ) -> Result<()> {
+            if depth > MAX_DEPTH {
+                return Err(Error::new("FILTER_DEPTH_LIMIT"));
+            }
+            budget.predicates(1)?;
+            let mut occurrence = |s: &Occurrence<K>| -> Result<()> {
+                if s.nth == 0 || usize::from(s.nth) > MAX_DRAWS {
+                    return Err(Error::new("INVALID_OCCURRENCE"));
+                }
+                if !selectors && s.nth != 1 {
+                    return Err(Error::new("UNSUPPORTED_USE_SELECTOR"));
+                }
+                id(&s.piece, budget)
+            };
+            match f {
+                Filter::Present(s) => occurrence(s)?,
+                Filter::Before(a, b) => {
+                    occurrence(a)?;
+                    occurrence(b)?;
+                }
+                Filter::Count(k, _, n) => {
+                    if usize::from(*n) > MAX_DRAWS {
+                        return Err(Error::new("INVALID_COUNT"));
+                    }
+                    id(k, budget)?;
+                }
+                Filter::All(xs) | Filter::Any(xs) => {
+                    if xs.is_empty() {
+                        return Err(Error::new("EMPTY_CONSTRAINT"));
+                    }
+                    if xs.len() > MAX_PREDICATES {
+                        return Err(Error::new("PREDICATE_LIMIT"));
+                    }
+                    for x in xs {
+                        visit(x, depth + 1, budget, len, selectors, id)?;
+                    }
+                }
+                Filter::Not(x) => visit(x, depth + 1, budget, len, selectors, id)?,
+                Filter::In {
+                    start,
+                    end,
+                    condition,
+                } => {
+                    if !selectors {
+                        return Err(Error::new("UNSUPPORTED_USE_SELECTOR"));
+                    }
+                    if *start == 0
+                        || start > end
+                        || usize::from(*end) > MAX_DRAWS
+                        || len.is_some_and(|n| usize::from(*end) > n)
+                    {
+                        return Err(Error::new("INVALID_FILTER_WINDOW"));
+                    }
+                    visit(
+                        condition,
+                        depth + 1,
+                        budget,
+                        Some(usize::from(end - start + 1)),
+                        selectors,
+                        id,
+                    )?;
+                }
+            }
+            Ok(())
+        }
+        visit(self, 0, budget, scope_len, selectors, check_id)
+    }
+    /// Conservative allocation/work accounting, not just the outer list length.
+    pub fn units(&self) -> usize {
+        let mut count = 0;
+        let mut todo = vec![self];
+        while let Some(x) = todo.pop() {
+            count += 1;
+            if count > MAX_PREDICATES {
+                return MAX_PREDICATES + 1;
+            }
+            match x {
+                Self::All(xs) | Self::Any(xs) => {
+                    if xs.len() > MAX_PREDICATES {
+                        return MAX_PREDICATES + 1;
+                    }
+                    todo.extend(xs);
+                }
+                Self::Not(x) | Self::In { condition: x, .. } => todo.push(x),
+                _ => {}
+            }
+        }
+        count
+    }
+    /// Call only after bounded validation of a public typed model.
+    pub fn try_map<L>(&self, f: &mut impl FnMut(&K) -> Result<L>) -> Result<Filter<L>> {
+        let selector =
+            |s: &Occurrence<K>, f: &mut dyn FnMut(&K) -> Result<L>| -> Result<Occurrence<L>> {
+                Ok(Occurrence {
+                    piece: f(&s.piece)?,
+                    nth: s.nth,
+                })
+            };
+        Ok(match self {
+            Self::Present(s) => Filter::Present(selector(s, f)?),
+            Self::Before(a, b) => Filter::Before(selector(a, f)?, selector(b, f)?),
+            Self::Count(k, op, n) => Filter::Count(f(k)?, *op, *n),
+            Self::All(xs) => Filter::All(xs.iter().map(|x| x.try_map(f)).collect::<Result<_>>()?),
+            Self::Any(xs) => Filter::Any(xs.iter().map(|x| x.try_map(f)).collect::<Result<_>>()?),
+            Self::Not(x) => Filter::Not(Box::new(x.try_map(f)?)),
+            Self::In {
+                start,
+                end,
+                condition,
+            } => Filter::In {
+                start: *start,
+                end: *end,
+                condition: Box::new(condition.try_map(f)?),
+            },
+        })
+    }
+    /// Feature IDs are stable machine contracts, independent of display language.
+    pub fn capabilities(&self, out: &mut std::collections::BTreeSet<String>) {
+        match self {
+            Self::All(xs) | Self::Any(xs) => {
+                out.insert("filters.logic.v1".into());
+                for x in xs {
+                    x.capabilities(out);
+                }
+            }
+            Self::Not(x) => {
+                out.insert("filters.logic.v1".into());
+                x.capabilities(out);
+            }
+            Self::Count(..) => {
+                out.insert("filters.count.v1".into());
+            }
+            Self::In { condition, .. } => {
+                out.insert("filters.window.v1".into());
+                condition.capabilities(out);
+            }
+            Self::Present(a) => {
+                if a.nth != 1 {
+                    out.insert("filters.occurrence.v1".into());
+                }
+            }
+            Self::Before(a, b) => {
+                if a.nth != 1 || b.nth != 1 {
+                    out.insert("filters.occurrence.v1".into());
+                }
+            }
+        }
+    }
+}

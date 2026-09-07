@@ -2,8 +2,10 @@
 #![forbid(unsafe_code)]
 pub mod budget;
 pub mod config;
+pub mod filter;
 pub mod hold;
 pub mod model;
+pub use filter::{CountOp, Filter, Occurrence};
 pub use model::*;
 
 pub const PROFILE: &str = "tessembly.rfc3.order.v1";

@@ -5,9 +5,10 @@ pub fn format(root: &Node) -> Result<String> {
     root.validate()?;
     fn predicates(ps: &[Predicate]) -> String {
         ps.iter()
-            .map(|p| match p.kind {
+            .map(|p| match &p.kind {
                 PredicateKind::Present(a) => a.to_string(),
                 PredicateKind::Before(a, b) => format!("{a}<{b}"),
+                PredicateKind::Filter(f) => crate::filter::render(f, false, &|p| p.to_string()),
             })
             .collect::<Vec<_>>()
             .join(",")
@@ -42,5 +43,9 @@ pub fn format(root: &Node) -> Result<String> {
         }
         s
     }
-    Ok(write(root))
+    let text = write(root);
+    if text.len() > tessembly_core::MAX_INPUT {
+        return Err(tessembly_core::Error::new("INPUT_LIMIT"));
+    }
+    Ok(text)
 }

@@ -19,3 +19,7 @@ path = "src/main.rs"
 [[bin]]
 name = "tessembly-document-tck"
 path = "src/bin/document.rs"
+
+[[bin]]
+name = "tessembly-filter-tck"
+path = "src/bin/filters.rs"

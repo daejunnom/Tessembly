@@ -53,10 +53,11 @@ pub fn letters(queue: &[Piece]) -> String {
     queue.iter().map(|p| p.ascii() as char).collect()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum PredicateKind {
     Present(Piece),
     Before(Piece, Piece),
+    Filter(crate::Filter<Piece>),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Predicate {
@@ -119,7 +120,7 @@ impl Node {
                 if block.is_empty() {
                     return Err(Error::new("EMPTY_CONSTRAINT"));
                 }
-                budget.predicates(block.len())?;
+
                 if block
                     .iter()
                     .any(|p| p.span.start > p.span.end || p.span.end > MAX_INPUT)
@@ -165,8 +166,32 @@ impl Node {
                     total
                 }
             };
+            for (block, selectors) in [
+                (&n.constraints.draw, true),
+                (&n.constraints.use_order, false),
+            ] {
+                if let Some(ps) = block {
+                    for p in ps {
+                        match &p.kind {
+                            PredicateKind::Filter(f) => {
+                                f.validate_with(budget, Some(len), selectors, &mut |_, _| Ok(()))?
+                            }
+                            _ => budget.predicates(1)?,
+                        }
+                    }
+                }
+            }
             Ok(len)
         }
         visit(self, 0, budget)
+    }
+}
+
+impl Predicate {
+    pub fn units(&self) -> usize {
+        match &self.kind {
+            PredicateKind::Filter(f) => f.units(),
+            _ => 1,
+        }
     }
 }

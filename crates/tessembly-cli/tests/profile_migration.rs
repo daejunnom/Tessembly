@@ -98,8 +98,8 @@ fn unrecognized_optional_metadata_is_not_silently_relabelled() {
     );
 }
 #[test]
-fn planning_only_filters_and_observation_extensions_are_not_implemented() {
-    for s in ["P4:D(I<T||S)", "P4:D(!T)", "P4:D(T=2)", "P4:D(1-3:T)"] {
+fn unapproved_observation_extensions_and_noncanonical_filters_are_not_implemented() {
+    for s in ["P4:D(I<T||S)", "P4:D(T&&I)", "P4:D(T==2)", "P4:D(1-3:T)"] {
         assert!(tessembly_text::parse(s, PROFILE).is_err());
     }
     let d = format!("tessembly \"{PROFILE}\"; supply(\"P7\"); qb(\"setup\");");
